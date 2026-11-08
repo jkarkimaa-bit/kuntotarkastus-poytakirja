@@ -362,7 +362,7 @@
   }
 
   function freshCurrent(){
-    return { id: uid(), meta: Object.assign(blankMeta(), {pvm: todayISO()}), rakenne: blankRakenne(), items: blankItems(), openCats: {"c6":true} };
+    return { id: uid(), meta: Object.assign(blankMeta(), {pvm: todayISO()}), rakenne: blankRakenne(), items: blankItems(), coverPhotos: [], openCats: {"c6":true} };
   }
 
   function loadJSON(key, fallback){
@@ -384,6 +384,7 @@
   (function migrate(i){
     if(!i.meta) i.meta = blankMeta();
     if(!i.rakenne) i.rakenne = blankRakenne();
+    if(!i.coverPhotos) i.coverPhotos = [];
     META_FIELDS.forEach(function(f){ if(i.meta[f.k]===undefined) i.meta[f.k]=""; });
     RAKENNE_FIELDS.forEach(function(f){ if(i.rakenne[f.k]===undefined) i.rakenne[f.k]=""; });
   })(state.current);
@@ -459,6 +460,17 @@
 
   function renderKohde(){
     var html = "";
+    html += '<div class="field-card"><h3>Kohteen yleiskuva</h3>';
+    html += '<div class="section-note">Esim. julkisivu ja tontti. Ei pakollinen.</div>';
+    html += '<span class="photo-pick-wrap"><input type="file" accept="image/*" class="photo-native-input" data-photo-key="cover">'+(state.current.coverPhotos.length? ' <span class="count">('+state.current.coverPhotos.length+')</span>':'')+'</span>';
+    if(state.current.coverPhotos.length){
+      html += '<div class="photo-row" style="margin-top:10px">';
+      state.current.coverPhotos.forEach(function(src, pidx){
+        html += '<div class="photo-thumb"><img src="'+src+'"><button class="photo-remove" data-remove-photo="cover" data-photo-idx="'+pidx+'">&times;</button></div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
     html += '<div class="field-card"><h3>Perustiedot</h3>';
     html += '<div class="section-note">Vastaa kuntotarkastuksen yleistietoja (kohde, tarkastaja, laajuus, rajaukset).</div>';
     html += '<div class="field-grid">';
@@ -603,6 +615,11 @@
     html += '<div class="report-doc" id="printArea">';
     html += '<h1>'+(esc(insp.meta.osoite)||"Kuntotarkastuspöytäkirja")+'</h1>';
     html += '<div class="doc-sub">Kuntotarkastuksen tarkastuspöytäkirja (kenttämuistio)</div>';
+    if(insp.coverPhotos && insp.coverPhotos.length){
+      html += '<div class="photo-row" style="margin:10px 0 16px">';
+      insp.coverPhotos.forEach(function(src){ html += '<div class="photo-thumb" style="width:110px;height:110px"><img src="'+src+'"></div>'; });
+      html += '</div>';
+    }
     html += '<div class="doc-meta-grid">';
     html += '<div><div class="k">TARKASTUSPÄIVÄ</div>'+fmtDate(insp.meta.pvm)+'</div>';
     html += '<div><div class="k">TARKASTAJA</div>'+(esc(insp.meta.tarkastaja)||"–")+'</div>';
@@ -798,7 +815,8 @@
       el.addEventListener("click", function(){
         var key = el.getAttribute("data-remove-photo");
         var idx = parseInt(el.getAttribute("data-photo-idx"), 10);
-        state.current.items[key].photos.splice(idx, 1);
+        if(key === "cover") state.current.coverPhotos.splice(idx, 1);
+        else state.current.items[key].photos.splice(idx, 1);
         persistCurrent();
         render();
       });
@@ -882,7 +900,8 @@
         var ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, w, h);
         var dataUrl = canvas.toDataURL("image/jpeg", 0.6);
-        state.current.items[key].photos.push(dataUrl);
+        if(key === "cover") state.current.coverPhotos.push(dataUrl);
+        else state.current.items[key].photos.push(dataUrl);
         persistCurrent();
         render();
       };
@@ -931,6 +950,12 @@
 
     var html = '<!doctype html><html lang="fi"><head><meta charset="utf-8"><title>'+osoite+' - muistiinpanot</title><style>'+css+'</style></head><body>';
     html += '<h1>'+osoite+'</h1><div class="sub">Kuntotarkastuksen kenttämuistiinpanot &middot; viety '+esc(fmtDateTime(Date.now()))+'</div>';
+
+    if(insp.coverPhotos && insp.coverPhotos.length){
+      html += '<div class="photos" style="margin-bottom:18px">';
+      insp.coverPhotos.forEach(function(src){ html += '<img src="'+src+'" style="width:220px;height:165px">'; });
+      html += '</div>';
+    }
 
     html += '<div class="meta">';
     META_FIELDS.forEach(function(f){
