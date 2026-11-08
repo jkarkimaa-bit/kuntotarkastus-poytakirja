@@ -150,6 +150,7 @@
   .report-card-title { font-weight: 700; font-size: 15px; }
   .report-card-sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
   .report-card-stats { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+  .list-del-btn { flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-soft); font-size: 18px; line-height: 1; cursor: pointer; }
   .stat-chip { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
   .stat-chip.ok { background: var(--ok-bg); color: var(--ok); }
   .stat-chip.huom { background: var(--huom-bg); color: var(--huom); }
@@ -596,7 +597,7 @@
         html += '<div class="report-card-main"><div class="report-card-title">'+(esc(h.meta.osoite)||"Osoite puuttuu")+'</div>';
         html += '<div class="report-card-sub">'+fmtDate(h.meta.pvm)+' &middot; '+esc(h.meta.tarkastaja||"–")+' &middot; tallennettu '+fmtDateTime(h.savedAt)+'</div>';
         html += '<div class="report-card-stats"><span class="stat-chip ok">'+c.ok+' ok</span><span class="stat-chip huom">'+c.huom+' huomiota</span>'+(c.risk? '<span class="stat-chip risk">'+c.risk+' riskirakenne</span>':'')+'</div>';
-        html += '</div></div>';
+        html += '</div><button class="list-del-btn" data-quick-del="'+h.id+'" title="Poista raportti">&times;</button></div>';
       });
     }
     return html;
@@ -836,6 +837,17 @@
     var back = app.querySelector("[data-back-to-list]");
     if(back) back.addEventListener("click", function(){ state.reportView = "list"; render(); });
 
+    app.querySelectorAll("[data-quick-del]").forEach(function(el){
+      el.addEventListener("click", function(e){
+        e.stopPropagation();
+        var id = el.getAttribute("data-quick-del");
+        if(!confirm("Poistetaanko tämä raportti pysyvästi?")) return;
+        state.history = state.history.filter(function(h){ return h.id !== id; });
+        persistHistory();
+        render();
+      });
+    });
+
     var bexport = app.querySelector("[data-export-notes]");
     if(bexport) bexport.addEventListener("click", function(){
       var id = bexport.getAttribute("data-export-notes");
@@ -867,7 +879,10 @@
       delete snapshot.items[k]._toimOpen;
     });
     delete snapshot.openCats;
-    state.history.push(snapshot);
+    var existingIdx = -1;
+    for(var i=0;i<state.history.length;i++){ if(state.history[i].id === snapshot.id){ existingIdx = i; break; } }
+    if(existingIdx > -1) state.history[existingIdx] = snapshot;
+    else state.history.push(snapshot);
     if(persistHistory()){
       state.tab = "raportit";
       state.reportView = snapshot.id;
