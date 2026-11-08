@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Kuntotarkastuspöytäkirja</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #E9EBEA;
+    --surface: #FFFFFF;
+    --surface-2: #F3F4F2;
+    --ink: #182225;
+    --ink-soft: #55625F;
+    --line: #D3D7D3;
+    --navy: #14293B;
+    --navy-2: #1E3A52;
+    --orange: #E2600C;
+    --yellow: #F0B31C;
+    --ok: #1F7A4D;
+    --ok-bg: #E4F3EA;
+    --huom: #C62A2A;
+    --huom-bg: #FBE7E5;
+    --skip: #7A8481;
+    --skip-bg: #ECEDEB;
+    --risk-bg: #FCEFD8;
+    --risk-ink: #8A5A00;
+    --radius: 10px;
+    --font-head: "Big Shoulders Display", "Arial Narrow", sans-serif;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #14181A; --surface: #1D2325; --surface-2: #242B2D; --ink: #EDEFEC; --ink-soft: #9AA6A2;
+      --line: #333B3D; --navy: #0E1B27; --navy-2: #16283A; --ok-bg: #163826; --huom-bg: #3A1D1D;
+      --skip-bg: #2A3032; --risk-bg: #3A2E12; --risk-ink: #F0B31C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181A; --surface: #1D2325; --surface-2: #242B2D; --ink: #EDEFEC; --ink-soft: #9AA6A2;
+    --line: #333B3D; --navy: #0E1B27; --navy-2: #16283A; --ok-bg: #163826; --huom-bg: #3A1D1D;
+    --skip-bg: #2A3032; --risk-bg: #3A2E12; --risk-ink: #F0B31C;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); -webkit-tap-highlight-color: transparent; }
+  #app { max-width: 640px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+
+  .topbar { position: sticky; top: 0; z-index: 20; padding-top: env(safe-area-inset-top, 0px); background: var(--navy); color: #F4F6F5; box-shadow: 0 2px 10px rgba(0,0,0,0.18); }
+  .topbar.collapsed .brand-sub, .topbar.collapsed .brand-addr, .topbar.collapsed .progress-row { display: none; }
+  .topbar.collapsed .topbar-inner { padding: 8px 16px 4px; }
+  .topbar.collapsed .brand-mark { font-size: 16px; }
+  .topbar.collapsed .tabs { padding: 6px 16px 8px; }
+  .topbar-inner { padding: 13px 16px 9px; }
+  .brand { display: flex; align-items: baseline; gap: 8px; }
+  .brand-mark { font-family: var(--font-head); font-weight: 800; font-size: 22px; line-height: 1; letter-spacing: 0.2px; }
+  .brand-sub { font-size: 11.5px; color: #AEBBC4; margin-top: 2px; }
+  .brand-addr { font-size: 13px; color: #E6ECEE; margin-top: 6px; font-weight: 600; }
+
+  .progress-row { margin-top: 10px; }
+  .progress-track { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.14); overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--yellow), var(--orange)); border-radius: 4px; transition: width .25s ease; }
+  .progress-label { font-size: 11px; color: #AEBBC4; margin-top: 5px; display: flex; justify-content: space-between; }
+
+  .tabs { display: flex; gap: 6px; padding: 10px 16px 12px; }
+  .tab-btn { flex: 1; padding: 9px 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.18); background: transparent; color: #C9D3D8; font-family: var(--font-body); font-weight: 600; font-size: 13px; }
+  .tab-btn.active { background: var(--orange); border-color: var(--orange); color: #fff; }
+
+  main { flex: 1; padding: 14px 12px 110px; }
+
+  /* ---- Kohdetiedot ---- */
+  .field-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
+  .field-card h3 { font-family: var(--font-head); font-size: 18px; margin: 0 0 10px; font-weight: 700; }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  .field-grid .full { grid-column: 1 / -1; }
+  .field-item label { display: block; font-size: 10.5px; color: var(--ink-soft); margin-bottom: 3px; font-weight: 600; }
+  .field-item input, .field-item textarea, .field-item select {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--ink); padding: 8px 10px; font-size: 14px; font-family: var(--font-body);
+  }
+  .field-item textarea { resize: vertical; min-height: 44px; }
+  .field-item input:focus, .field-item textarea:focus, .field-item select:focus { outline: 2px solid var(--orange); outline-offset: 1px; }
+  .section-note { font-size: 12.5px; color: var(--ink-soft); margin: -4px 0 12px; line-height: 1.4; }
+
+  /* ---- Categories / items ---- */
+  .category { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+  .cat-head { display: flex; align-items: center; gap: 10px; padding: 13px 14px; width: 100%; background: none; border: none; text-align: left; font-family: var(--font-body); color: var(--ink); }
+  .cat-num { font-family: var(--font-head); font-weight: 700; font-size: 19px; color: var(--navy-2); width: 26px; flex-shrink: 0; }
+  :root[data-theme="dark"] .cat-num { color: #7FA8C9; }
+  .cat-title { flex: 1; }
+  .cat-name { font-weight: 600; font-size: 14.5px; }
+  .cat-count { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+  .cat-chevron { font-size: 13px; color: var(--ink-soft); transition: transform .18s ease; flex-shrink: 0; }
+  .cat-chevron.open { transform: rotate(90deg); }
+  .cat-flags { display: flex; gap: 4px; flex-shrink: 0; }
+  .flag-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--huom); }
+
+  .cat-body { border-top: 1px solid var(--line); display: none; }
+  .cat-body.open { display: block; }
+
+  .item { padding: 12px 14px; border-bottom: 1px solid var(--line); border-left: 3px solid var(--skip-bg); }
+  .item:last-child { border-bottom: none; }
+  .item[data-status="ok"] { border-left-color: var(--ok); }
+  .item[data-status="huomio"] { border-left-color: var(--huom); }
+
+  .item-text { font-size: 14.5px; font-weight: 600; line-height: 1.4; margin-bottom: 9px; }
+  .item-sub { font-size: 11.5px; color: var(--ink-soft); font-weight: 400; margin-top: 1px; }
+
+  .segmented { display: flex; gap: 6px; }
+  .seg-btn { flex: 1; padding: 8px 4px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); font-family: var(--font-body); font-weight: 600; font-size: 12px; color: var(--ink-soft); }
+  .seg-btn.on-ok { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+  .seg-btn.on-huom { background: var(--huom-bg); border-color: var(--huom); color: var(--huom); }
+  .seg-btn.on-skip { background: var(--skip-bg); border-color: var(--ink-soft); color: var(--ink-soft); }
+
+  .item-actions { display: flex; gap: 14px; margin-top: 9px; flex-wrap: wrap; }
+  .link-btn { background: none; border: none; color: var(--navy-2); font-family: var(--font-body); font-size: 12.5px; font-weight: 600; padding: 0; display: flex; align-items: center; gap: 4px; position: relative; cursor: pointer; }
+  :root[data-theme="dark"] .link-btn { color: #7FA8C9; }
+  .link-btn .count { color: var(--orange); }
+  .photo-pick-wrap { display: inline-flex; align-items: center; gap: 4px; }
+  .photo-native-input { font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--navy-2); background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 5px 10px 5px 8px; max-width: 150px; }
+  :root[data-theme="dark"] .photo-native-input { color: #7FA8C9; }
+  .photo-native-input::file-selector-button { font-family: var(--font-body); font-size: 11.5px; font-weight: 700; color: #fff; background: var(--navy-2); border: none; border-radius: 10px; padding: 4px 8px; margin-right: 6px; }
+
+  .item-extra { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .item-note, .item-toimenpide { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: var(--font-body); font-size: 13.5px; background: var(--surface-2); color: var(--ink); resize: vertical; min-height: 50px; }
+  .note-label { font-size: 10.5px; color: var(--ink-soft); font-weight: 700; letter-spacing: 0.2px; }
+
+  .flag-toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip-toggle { padding: 6px 11px; border-radius: 20px; border: 1px solid var(--line); background: var(--surface-2); font-size: 12px; font-weight: 600; color: var(--ink-soft); font-family: var(--font-body); }
+  .chip-toggle.on { background: var(--risk-bg); border-color: var(--risk-ink); color: var(--risk-ink); }
+
+  .photo-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .photo-thumb { position: relative; width: 64px; height: 64px; border-radius: 7px; overflow: hidden; border: 1px solid var(--line); }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-remove { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: rgba(20,20,20,0.72); color: #fff; border: none; font-size: 11px; line-height: 18px; padding: 0; }
+  .photo-add { width: 64px; height: 64px; border-radius: 7px; border: 1.5px dashed var(--line); background: var(--surface-2); color: var(--ink-soft); font-size: 20px; font-family: var(--font-body); }
+
+  .bottombar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 1px solid var(--line); display: flex; gap: 10px; max-width: 640px; margin: 0 auto; }
+  .btn { flex: 1; padding: 13px; border-radius: 9px; border: none; font-family: var(--font-body); font-weight: 700; font-size: 14.5px; }
+  .btn-primary { background: var(--orange); color: #fff; }
+  .btn-ghost { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); flex: 0 0 auto; padding: 13px 16px; }
+
+  .report-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 13px 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+  .report-card-main { flex: 1; }
+  .report-card-title { font-weight: 700; font-size: 15px; }
+  .report-card-sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .report-card-stats { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+  .list-del-btn { flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-soft); font-size: 18px; line-height: 1; cursor: pointer; }
+  .stat-chip { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
+  .stat-chip.ok { background: var(--ok-bg); color: var(--ok); }
+  .stat-chip.huom { background: var(--huom-bg); color: var(--huom); }
+  .stat-chip.risk { background: var(--risk-bg); color: var(--risk-ink); }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--ink-soft); }
+  .empty-state .big { font-family: var(--font-head); font-size: 22px; color: var(--ink); margin-bottom: 6px; }
+
+  .report-back { display: flex; align-items: center; gap: 8px; padding: 2px 2px 14px; }
+  .report-back button { background: none; border: none; color: var(--navy-2); font-weight: 600; font-size: 14px; padding: 6px 0; }
+  :root[data-theme="dark"] .report-back button { color: #7FA8C9; }
+
+  .report-doc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 16px; }
+  .report-doc h1 { font-family: var(--font-head); font-size: 24px; margin: 0 0 2px; }
+  .report-doc .doc-sub { font-size: 13px; color: var(--ink-soft); margin-bottom: 14px; }
+  .doc-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-bottom: 16px; font-size: 13px; }
+  .doc-meta-grid .k { color: var(--ink-soft); font-size: 10.5px; font-weight: 600; }
+  .doc-meta-grid .full { grid-column: 1 / -1; }
+
+  .summary-strip { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .summary-pill { flex: 1; min-width: 70px; text-align: center; padding: 10px 6px; border-radius: 9px; background: var(--surface-2); }
+  .summary-pill .n { font-family: var(--font-head); font-size: 22px; line-height: 1; font-weight: 700; }
+  .summary-pill .l { font-size: 10px; color: var(--ink-soft); margin-top: 3px; }
+  .summary-pill.huom .n { color: var(--huom); }
+  .summary-pill.ok .n { color: var(--ok); }
+  .summary-pill.risk .n { color: var(--risk-ink); }
+
+  .sum-table { width: 100%; border-collapse: collapse; margin: 10px 0 20px; font-size: 12px; }
+  .sum-table th { text-align: left; font-size: 10px; color: var(--ink-soft); border-bottom: 1px solid var(--line); padding: 5px 6px; }
+  .sum-table td { border-bottom: 1px solid var(--line); padding: 7px 6px; vertical-align: top; }
+  .sum-table .viite { font-weight: 700; white-space: nowrap; color: var(--navy-2); }
+  :root[data-theme="dark"] .sum-table .viite { color: #7FA8C9; }
+  .risk-tag { display: inline-block; font-size: 10px; font-weight: 700; color: var(--risk-ink); background: var(--risk-bg); padding: 1px 6px; border-radius: 10px; margin-top: 3px; }
+
+  .doc-chapter-title { font-family: var(--font-head); font-weight: 700; font-size: 19px; margin: 22px 0 4px; padding-top: 10px; border-top: 2px solid var(--navy); }
+  .doc-chapter-title:first-of-type { border-top: none; margin-top: 0; }
+  .doc-item { padding: 10px 0; border-top: 1px solid var(--line); }
+  .doc-item:first-child { border-top: none; }
+  .doc-item-head { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; font-weight: 600; }
+  .doc-item-status { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; flex-shrink: 0; height: fit-content; white-space: nowrap; }
+  .doc-item-status.ok { background: var(--ok-bg); color: var(--ok); }
+  .doc-item-status.huom { background: var(--huom-bg); color: var(--huom); }
+  .doc-item-note { font-size: 13px; color: var(--ink); margin-top: 5px; line-height: 1.45; white-space: pre-wrap; }
+  .doc-item-toimenpide { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; line-height: 1.4; }
+  .doc-item-toimenpide b { color: var(--ink); font-weight: 700; }
+  .doc-item-photos { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .doc-item-photos img { width: 72px; height: 72px; object-fit: cover; border-radius: 7px; border: 1px solid var(--line); }
+  .doc-item-tags { margin-top: 5px; }
+
+  .doc-actions { display: flex; gap: 10px; margin: 16px 2px 4px; }
+  .doc-actions .btn { flex: 1; }
+
+  .catlist-row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13px; border-top: 1px solid var(--line); }
+  .catlist-row:first-child { border-top: none; }
+
+  @media print {
+    .topbar, .bottombar, .report-back, .doc-actions { display: none !important; }
+    body, #app { background: #fff; }
+    main { padding: 0; }
+    .report-doc { border: none; padding: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function(){
+  "use strict";
+
+  /* ================= Rakenne: kuntotarkastuksen laajuus KH 90-00394 mukaisesti ================= */
+  var CHAPTERS = [
+    { id:"c6", num:"6", name:"Perustukset, alapohja ja rakennuksen vierusta", items:[
+      "Sokkeli ja tasoerot",
+      "Maanpintojen muotoilu ja rakennuksen sijainti",
+      "Sadevesien poisjohtaminen",
+      "Salaojat ja tarkastuskaivot",
+      "Portaat, kaiteet, luiskat, terassit",
+      "Alapohja",
+      "Maan vastaiset seinärakenteet"
+    ]},
+    { id:"c7", num:"7", name:"Ulkoseinät ja julkisivut", items:[
+      "Julkisivuverhous",
+      "Ulkoseinärunko ja sisäpuoliset havainnot",
+      "Parvekkeet ja terassit"
+    ]},
+    { id:"c8", num:"8", name:"Ikkunat ja ulko-ovet", items:[
+      "Ikkunat (kunto, tiiveys, toiminta, vesipeltien kallistukset)",
+      "Ulko-ovet"
+    ]},
+    { id:"c9", num:"9", name:"Vesikatto ja yläpohja", items:[
+      "Vesikate ja katon varusteet",
+      "Yläpohja ja ullakkotila"
+    ]},
+    { id:"c10", num:"10", name:"Märkätilat", items:[
+      "Pinnoitteet, rakenteet ja vedeneristys",
+      "Lattiakaivot ja läpiviennit",
+      "Lattioiden kallistukset",
+      "Pintapuolinen kosteuskartoitus"
+    ]},
+    { id:"c11", num:"11", name:"Löylyhuone", items:[
+      "Pinnoitteet, rakenteet ja vedeneristykset",
+      "Kiuas ja suojaetäisyydet",
+      "Tuuletus"
+    ]},
+    { id:"c12", num:"12", name:"Muut sisätilat", items:[
+      "Keittiö",
+      "WC-tilat",
+      "Kodinhoitohuone",
+      "Asuinhuoneet",
+      "Tekniset tilat",
+      "Varastot, autotallit ja muut tilat",
+      "Väliseinät",
+      "Välipohjat"
+    ]},
+    { id:"c13", num:"13", name:"Lämmitysjärjestelmä", items:[
+      "Havaitut vauriot tai puutteet",
+      "Lämmityslaitteet ja niiden ikä",
+      "Tekniset käyttöiät",
+      "Tulisijat ja hormit"
+    ]},
+    { id:"c14", num:"14", name:"Vesi- ja viemärilaitteet", items:[
+      "Vesijohdot ja käyttövesiverkosto",
+      "Viemärit",
+      "Vesikalusteet, hanat ja sekoittajat"
+    ]},
+    { id:"c15", num:"15", name:"Ilmanvaihto", items:[
+      "Havaitut vauriot ja puutteet",
+      "Korvausilma",
+      "Siirtoilmaraot",
+      "Ilmanvaihtokone",
+      "Sisäilman laatu aistinvaraisesti"
+    ]},
+    { id:"c16", num:"16", name:"Sähköjärjestelmä", items:[
+      "Tekninen käyttöikä",
+      "Havaitut vauriot ja puutteet",
+      "Palovaroittimet"
+    ]}
+  ];
+
+  var TOTAL_ITEMS = CHAPTERS.reduce(function(s,c){ return s + c.items.length; }, 0);
+
+  var META_FIELDS = [
+    {k:"osoite", l:"Kohteen osoite", full:true},
+    {k:"omistaja", l:"Omistaja"},
+    {k:"kohdetyyppi", l:"Kohdetyyppi"},
+    {k:"pvm", l:"Tarkastuspäivä", type:"date"},
+    {k:"tarkastaja", l:"Tarkastaja"},
+    {k:"pinta_ala", l:"Pinta-ala (m²)"},
+    {k:"rakennusvuosi", l:"Rakennusvuosi"},
+    {k:"syy", l:"Tarkastuksen syy"},
+    {k:"lasnaolijat", l:"Läsnäolijat", full:true},
+    {k:"saa", l:"Sää tarkastushetkellä"},
+    {k:"mittalaitteet", l:"Käytetyt mittalaitteet"},
+    {k:"rajaukset", l:"Tarkastuksen rajaukset", full:true, area:true}
+  ];
+
+  var RAKENNE_FIELDS = [
+    {k:"kerrosluku", l:"Kerrosluku"},
+    {k:"rakennustapa", l:"Rakennustapa"},
+    {k:"perustukset", l:"Perustukset"},
+    {k:"ulkoseinat", l:"Ulkoseinärakenteet"},
+    {k:"julkisivu", l:"Julkisivupinnoite"},
+    {k:"valiseinat", l:"Väliseinät"},
+    {k:"ylapohja", l:"Yläpohja"},
+    {k:"valipohja", l:"Välipohja"},
+    {k:"kattomuoto", l:"Kattomuoto"},
+    {k:"vesikate", l:"Vesikate"},
+    {k:"lammontuotto", l:"Lämmöntuotto"},
+    {k:"lammonjako", l:"Lämmönjako"},
+    {k:"ilmanvaihto", l:"Ilmanvaihtojärjestelmä"},
+    {k:"kunnallistekniikka", l:"Kunnallistekniikka"}
+  ];
+
+  var CUR_KEY = "ktp_v1_current";
+  var HIST_KEY = "ktp_v1_history";
+
+  function todayISO(){
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function fmtDate(iso){
+    if(!iso) return "–";
+    var p = iso.split("-");
+    if(p.length!==3) return iso;
+    return p[2] + "." + p[1] + "." + p[0];
+  }
+  function fmtDateTime(ts){
+    var d = new Date(ts);
+    return d.toLocaleDateString("fi-FI") + " klo " + d.toLocaleTimeString("fi-FI",{hour:"2-digit",minute:"2-digit"});
+  }
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  function blankItems(){
+    var o = {};
+    CHAPTERS.forEach(function(c){
+      c.items.forEach(function(t, idx){
+        o[c.id+"-"+idx] = { status: null, note: "", toimenpide: "", riski: false, lisatutkimus: false, photos: [] };
+      });
+    });
+    return o;
+  }
+  function blankMeta(){
+    var o = {};
+    META_FIELDS.forEach(function(f){ o[f.k] = ""; });
+    return o;
+  }
+  function blankRakenne(){
+    var o = {};
+    RAKENNE_FIELDS.forEach(function(f){ o[f.k] = ""; });
+    return o;
+  }
+
+  function freshCurrent(){
+    return { id: uid(), meta: Object.assign(blankMeta(), {pvm: todayISO()}), rakenne: blankRakenne(), items: blankItems(), coverPhotos: [], openCats: {"c6":true} };
+  }
+
+  function loadJSON(key, fallback){
+    try { var raw = localStorage.getItem(key); if(!raw) return fallback; return JSON.parse(raw); }
+    catch(e){ return fallback; }
+  }
+  function saveJSON(key, val){
+    try { localStorage.setItem(key, JSON.stringify(val)); return true; }
+    catch(e){ console.error("Tallennus epäonnistui", e); return false; }
+  }
+
+  var state = {
+    current: loadJSON(CUR_KEY, null) || freshCurrent(),
+    history: loadJSON(HIST_KEY, []),
+    tab: "kohde",
+    reportView: "list"
+  };
+  // migrate missing meta/rakenne keys on old saves
+  (function migrate(i){
+    if(!i.meta) i.meta = blankMeta();
+    if(!i.rakenne) i.rakenne = blankRakenne();
+    if(!i.coverPhotos) i.coverPhotos = [];
+    META_FIELDS.forEach(function(f){ if(i.meta[f.k]===undefined) i.meta[f.k]=""; });
+    RAKENNE_FIELDS.forEach(function(f){ if(i.rakenne[f.k]===undefined) i.rakenne[f.k]=""; });
+  })(state.current);
+
+  function persistCurrent(){ saveJSON(CUR_KEY, state.current); }
+  function persistHistory(){
+    var ok = saveJSON(HIST_KEY, state.history);
+    if(!ok) alert("Tallennustila on täynnä. Poista vanhoja tarkastuksia tai kuvia ja yritä uudelleen.");
+    return ok;
+  }
+
+  function itemsOf(insp){
+    var list = [];
+    CHAPTERS.forEach(function(c){
+      c.items.forEach(function(t, idx){
+        var key = c.id+"-"+idx;
+        var d = insp.items[key] || {status:null, note:"", toimenpide:"", riski:false, lisatutkimus:false, photos:[]};
+        list.push({ key:key, chNum:c.num, chName:c.name, idx:idx, viite:c.num+"."+(idx+1), text:t,
+          status:d.status, note:d.note, toimenpide:d.toimenpide||"", riski:!!d.riski, lisatutkimus:!!d.lisatutkimus, photos:d.photos||[] });
+      });
+    });
+    return list;
+  }
+
+  function counts(insp){
+    var list = itemsOf(insp);
+    var c = { ok:0, huom:0, risk:0, total:list.length, answered:0 };
+    list.forEach(function(x){
+      if(x.status==="ok") c.ok++;
+      else if(x.status==="huomio") c.huom++;
+      if(x.riski) c.risk++;
+    });
+    c.answered = list.filter(function(x){ return x.status; }).length;
+    return c;
+  }
+
+  /* ---------------- render ---------------- */
+  var app = document.getElementById("app");
+
+  function render(){
+    var html = "";
+    html += renderTopbar();
+    html += "<main>";
+    if(state.tab === "kohde") html += renderKohde();
+    else if(state.tab === "tarkastus") html += renderTarkastus();
+    else html += renderRaportit();
+    html += "</main>";
+    if(state.tab === "kohde" || state.tab === "tarkastus") html += renderBottombar();
+    app.innerHTML = html;
+    bindEvents();
+  }
+
+  function renderTopbar(){
+    var c = counts(state.current);
+    var pct = c.total ? Math.round((c.answered / c.total) * 100) : 0;
+    var osoite = state.current.meta.osoite || "Kohteen osoite puuttuu";
+    var compact = state.tab === "tarkastus";
+    var html = '<div class="topbar'+(compact?" collapsed":"")+'"><div class="topbar-inner">';
+    html += '<div class="brand"><span class="brand-mark">KUNTOTARKASTUS</span></div>';
+    if(!compact){
+      html += '<div class="brand-sub">Tarkastuspöytäkirja &middot; kaikkia kohtia ei tarvitse täyttää</div>';
+      html += '<div class="brand-addr">'+esc(osoite)+'</div>';
+      html += '<div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:'+pct+'%"></div></div>';
+      html += '<div class="progress-label"><span>'+c.answered+' / '+c.total+' kirjattu</span><span>'+(c.huom? c.huom+' huomio'+(c.huom>1?'ta':'') : 'Ei huomioita')+'</span></div></div>';
+    }
+    html += '<div class="tabs">';
+    html += '<button class="tab-btn'+(state.tab==="kohde"?" active":"")+'" data-tab="kohde">Kohdetiedot</button>';
+    html += '<button class="tab-btn'+(state.tab==="tarkastus"?" active":"")+'" data-tab="tarkastus">Tarkastus'+(compact? " &middot; "+c.answered+"/"+c.total : "")+'</button>';
+    html += '<button class="tab-btn'+(state.tab==="raportit"?" active":"")+'" data-tab="raportit">Raportit'+(state.history.length? " ("+state.history.length+")":"")+'</button>';
+    html += '</div></div></div>';
+    return html;
+  }
+
+  function renderKohde(){
+    var html = "";
+    html += '<div class="field-card"><h3>Kohteen yleiskuva</h3>';
+    html += '<div class="section-note">Esim. julkisivu ja tontti. Ei pakollinen.</div>';
+    html += '<span class="photo-pick-wrap"><input type="file" accept="image/*" class="photo-native-input" data-photo-key="cover">'+(state.current.coverPhotos.length? ' <span class="count">('+state.current.coverPhotos.length+')</span>':'')+'</span>';
+    if(state.current.coverPhotos.length){
+      html += '<div class="photo-row" style="margin-top:10px">';
+      state.current.coverPhotos.forEach(function(src, pidx){
+        html += '<div class="photo-thumb"><img src="'+src+'"><button class="photo-remove" data-remove-photo="cover" data-photo-idx="'+pidx+'">&times;</button></div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '<div class="field-card"><h3>Perustiedot</h3>';
+    html += '<div class="section-note">Vastaa kuntotarkastuksen yleistietoja (kohde, tarkastaja, laajuus, rajaukset).</div>';
+    html += '<div class="field-grid">';
+    META_FIELDS.forEach(function(f){
+      var val = state.current.meta[f.k] || "";
+      html += '<div class="field-item'+(f.full?" full":"")+'">';
+      html += '<label>'+esc(f.l)+'</label>';
+      if(f.area){
+        html += '<textarea data-meta-key="'+f.k+'" placeholder="Esim. tila täynnä tavaraa, kulkuaukko ei auennut...">'+esc(val)+'</textarea>';
+      } else {
+        html += '<input type="'+(f.type||"text")+'" data-meta-key="'+f.k+'" value="'+esc(val)+'">';
+      }
+      html += '</div>';
+    });
+    html += '</div></div>';
+
+    html += '<div class="field-card"><h3>Rakennetyypit ja LVI-tekniikka</h3>';
+    html += '<div class="section-note">Vapaaehtoinen, mutta nopeuttaa raportin viimeistelyä. Täytä tiedossa olevilta osin.</div>';
+    html += '<div class="field-grid">';
+    RAKENNE_FIELDS.forEach(function(f){
+      var val = state.current.rakenne[f.k] || "";
+      html += '<div class="field-item"><label>'+esc(f.l)+'</label><input type="text" data-rakenne-key="'+f.k+'" value="'+esc(val)+'"></div>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderTarkastus(){
+    var html = "";
+    CHAPTERS.forEach(function(ch){
+      var open = !!state.current.openCats[ch.id];
+      var chAnswered = 0, chHuom = 0;
+      ch.items.forEach(function(t, idx){
+        var d = state.current.items[ch.id+"-"+idx];
+        if(d && d.status){ chAnswered++; if(d.status==="huomio") chHuom++; }
+      });
+      html += '<div class="category">';
+      html += '<button class="cat-head" data-cat-toggle="'+ch.id+'">';
+      html += '<span class="cat-num">'+ch.num+'</span>';
+      html += '<span class="cat-title"><div class="cat-name">'+esc(ch.name)+'</div><div class="cat-count">'+chAnswered+' / '+ch.items.length+' kirjattu</div></span>';
+      html += '<span class="cat-flags">'+(chHuom? '<span class="flag-dot"></span>':'')+'</span>';
+      html += '<span class="cat-chevron'+(open?" open":"")+'">&#9656;</span>';
+      html += '</button>';
+      html += '<div class="cat-body'+(open?" open":"")+'">';
+      ch.items.forEach(function(t, idx){
+        var key = ch.id+"-"+idx;
+        var d = state.current.items[key] || {status:null, note:"", toimenpide:"", riski:false, lisatutkimus:false, photos:[]};
+        html += '<div class="item" data-status="'+(d.status||"")+'">';
+        html += '<div class="item-text">'+ch.num+'.'+(idx+1)+' '+esc(t)+'</div>';
+        html += '<div class="segmented">';
+        html += '<button class="seg-btn'+(d.status==="ok"?" on-ok":"")+'" data-set-status="'+key+'" data-status-val="ok">Tarkastettu, ok</button>';
+        html += '<button class="seg-btn'+(d.status==="huomio"?" on-huom":"")+'" data-set-status="'+key+'" data-status-val="huomio">Huomio</button>';
+        html += '<button class="seg-btn'+(d.status==="ei_tarkastettu"?" on-skip":"")+'" data-set-status="'+key+'" data-status-val="ei_tarkastettu">Ei tarkastettu</button>';
+        html += '</div>';
+        html += '<div class="item-actions">';
+        html += '<button class="link-btn" data-toggle-note="'+key+'">Havainto'+(d.note? ' <span class="count">&#9679;</span>':'')+'</button>';
+        html += '<button class="link-btn" data-toggle-toimenpide="'+key+'">Toimenpide'+(d.toimenpide? ' <span class="count">&#9679;</span>':'')+'</button>';
+        html += '<span class="photo-pick-wrap"><input type="file" accept="image/*" class="photo-native-input" data-photo-key="'+key+'">'+(d.photos.length? ' <span class="count">('+d.photos.length+')</span>':'')+'</span>';
+        html += '</div>';
+        if(d._noteOpen || d.note || d._toimOpen || d.toimenpide || d.photos.length || d.riski || d.lisatutkimus || d._flagsOpen){
+          html += '<div class="item-extra">';
+          if(d._noteOpen || d.note){
+            html += '<div><div class="note-label">HAVAINTO</div><textarea class="item-note" data-note-key="'+key+'" placeholder="Mitä havaittiin?">'+esc(d.note)+'</textarea></div>';
+          }
+          if(d._toimOpen || d.toimenpide){
+            html += '<div><div class="note-label">TOIMENPIDESUOSITUS</div><textarea class="item-toimenpide" data-toim-key="'+key+'" placeholder="Suositeltu toimenpide tai jatkotutkimus...">'+esc(d.toimenpide)+'</textarea></div>';
+          }
+          html += '<div class="flag-toggles">';
+          html += '<button class="chip-toggle'+(d.riski?" on":"")+'" data-toggle-flag="'+key+'" data-flag="riski">Tunnettu riskirakenne</button>';
+          html += '<button class="chip-toggle'+(d.lisatutkimus?" on":"")+'" data-toggle-flag="'+key+'" data-flag="lisatutkimus">Lisätutkimustarve</button>';
+          html += '</div>';
+          if(d.photos.length){
+            html += '<div class="photo-row">';
+            d.photos.forEach(function(src, pidx){
+              html += '<div class="photo-thumb"><img src="'+src+'"><button class="photo-remove" data-remove-photo="'+key+'" data-photo-idx="'+pidx+'">&times;</button></div>';
+            });
+            html += '</div>';
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+    return html;
+  }
+
+  function renderBottombar(){
+    return (
+      '<div class="bottombar">' +
+        '<button class="btn btn-primary" id="btn-save">Tallenna raportti</button>' +
+        '<button class="btn btn-ghost" id="btn-new">Uusi</button>' +
+      '</div>'
+    );
+  }
+
+  function renderRaportit(){
+    if(state.reportView !== "list" && state.reportView !== "current" && !state.history.some(function(h){return h.id===state.reportView;})){
+      state.reportView = "list";
+    }
+    if(state.reportView === "list"){
+      return renderReportList();
+    }
+    return renderReportDetail();
+  }
+
+  function renderReportList(){
+    var html = "";
+    var curC = counts(state.current);
+    html += '<div class="report-card" data-open-report="current">';
+    html += '<div class="report-card-main"><div class="report-card-title">Kesken oleva tarkastus</div>';
+    html += '<div class="report-card-sub">'+(esc(state.current.meta.osoite)||"Osoite puuttuu")+' &middot; '+fmtDate(state.current.meta.pvm)+'</div>';
+    html += '<div class="report-card-stats"><span class="stat-chip ok">'+curC.ok+' ok</span><span class="stat-chip huom">'+curC.huom+' huomiota</span>'+(curC.risk? '<span class="stat-chip risk">'+curC.risk+' riskirakenne</span>':'')+'</div>';
+    html += '</div></div>';
+
+    if(!state.history.length){
+      html += '<div class="empty-state"><div class="big">Ei tallennettuja raportteja</div>Tallenna nykyinen tarkastus, niin se ilmestyy tähän listaan.</div>';
+    } else {
+      var hist = state.history.slice().sort(function(a,b){ return b.savedAt - a.savedAt; });
+      hist.forEach(function(h){
+        var c = counts(h);
+        html += '<div class="report-card" data-open-report="'+h.id+'">';
+        html += '<div class="report-card-main"><div class="report-card-title">'+(esc(h.meta.osoite)||"Osoite puuttuu")+'</div>';
+        html += '<div class="report-card-sub">'+fmtDate(h.meta.pvm)+' &middot; '+esc(h.meta.tarkastaja||"–")+' &middot; tallennettu '+fmtDateTime(h.savedAt)+'</div>';
+        html += '<div class="report-card-stats"><span class="stat-chip ok">'+c.ok+' ok</span><span class="stat-chip huom">'+c.huom+' huomiota</span>'+(c.risk? '<span class="stat-chip risk">'+c.risk+' riskirakenne</span>':'')+'</div>';
+        html += '</div><button class="list-del-btn" data-quick-del="'+h.id+'" title="Poista raportti">&times;</button></div>';
+      });
+    }
+    return html;
+  }
+
+  function renderReportDetail(){
+    var insp = state.reportView === "current" ? state.current : state.history.find(function(h){return h.id===state.reportView;});
+    if(!insp) return renderReportList();
+    var list = itemsOf(insp);
+    var c = counts(insp);
+    var huomiot = list.filter(function(x){ return x.status==="huomio"; });
+    var okit = list.filter(function(x){ return x.status==="ok"; });
+    var eiTark = list.filter(function(x){ return !x.status || x.status==="ei_tarkastettu"; });
+
+    var html = '<div class="report-back"><button data-back-to-list>&#8592; Kaikki raportit</button></div>';
+    html += '<div class="report-doc" id="printArea">';
+    html += '<h1>'+(esc(insp.meta.osoite)||"Kuntotarkastuspöytäkirja")+'</h1>';
+    html += '<div class="doc-sub">Kuntotarkastuksen tarkastuspöytäkirja (kenttämuistio)</div>';
+    if(insp.coverPhotos && insp.coverPhotos.length){
+      html += '<div class="photo-row" style="margin:10px 0 16px">';
+      insp.coverPhotos.forEach(function(src){ html += '<div class="photo-thumb" style="width:110px;height:110px"><img src="'+src+'"></div>'; });
+      html += '</div>';
+    }
+    html += '<div class="doc-meta-grid">';
+    html += '<div><div class="k">TARKASTUSPÄIVÄ</div>'+fmtDate(insp.meta.pvm)+'</div>';
+    html += '<div><div class="k">TARKASTAJA</div>'+(esc(insp.meta.tarkastaja)||"–")+'</div>';
+    html += '<div><div class="k">OMISTAJA</div>'+(esc(insp.meta.omistaja)||"–")+'</div>';
+    html += '<div><div class="k">KOHDETYYPPI</div>'+(esc(insp.meta.kohdetyyppi)||"–")+'</div>';
+    html += '<div><div class="k">PINTA-ALA</div>'+(esc(insp.meta.pinta_ala)||"–")+'</div>';
+    html += '<div><div class="k">RAKENNUSVUOSI</div>'+(esc(insp.meta.rakennusvuosi)||"–")+'</div>';
+    if(insp.meta.syy) html += '<div><div class="k">TARKASTUKSEN SYY</div>'+esc(insp.meta.syy)+'</div>';
+    if(insp.meta.saa) html += '<div><div class="k">SÄÄ</div>'+esc(insp.meta.saa)+'</div>';
+    if(insp.meta.lasnaolijat) html += '<div class="full"><div class="k">LÄSNÄOLIJAT</div>'+esc(insp.meta.lasnaolijat)+'</div>';
+    if(insp.meta.mittalaitteet) html += '<div class="full"><div class="k">MITTALAITTEET</div>'+esc(insp.meta.mittalaitteet)+'</div>';
+    if(insp.meta.rajaukset) html += '<div class="full"><div class="k">TARKASTUKSEN RAJAUKSET JA EPÄVARMUUSTEKIJÄT</div>'+esc(insp.meta.rajaukset)+'</div>';
+    html += '</div>';
+
+    var rk = RAKENNE_FIELDS.filter(function(f){ return insp.rakenne[f.k]; });
+    if(rk.length){
+      html += '<div class="doc-chapter-title" style="margin-top:4px;">Rakennetyypit ja LVI-tekniikka</div>';
+      html += '<div class="doc-meta-grid" style="margin-top:8px;">';
+      rk.forEach(function(f){ html += '<div><div class="k">'+esc(f.l.toUpperCase())+'</div>'+esc(insp.rakenne[f.k])+'</div>'; });
+      html += '</div>';
+    }
+
+    html += '<div class="summary-strip">';
+    html += '<div class="summary-pill ok"><div class="n">'+c.ok+'</div><div class="l">Tarkastettu, ok</div></div>';
+    html += '<div class="summary-pill huom"><div class="n">'+c.huom+'</div><div class="l">Huomioita</div></div>';
+    html += '<div class="summary-pill risk"><div class="n">'+c.risk+'</div><div class="l">Riskirakenne</div></div>';
+    html += '<div class="summary-pill"><div class="n">'+eiTark.length+'</div><div class="l">Ei tarkastettu</div></div>';
+    html += '</div>';
+
+    html += '<div class="doc-chapter-title" style="margin-top:0;">Oleellisimmat havainnot</div>';
+    if(huomiot.length){
+      html += '<table class="sum-table"><thead><tr><th>Viite</th><th>Havainto</th><th>Toimenpide</th></tr></thead><tbody>';
+      huomiot.forEach(function(x){
+        html += '<tr><td class="viite">'+x.viite+'</td><td>'+esc(x.text)+(x.note? '<br><span style="color:var(--ink-soft)">'+esc(x.note)+'</span>':'')+
+          (x.riski? '<br><span class="risk-tag">Riskirakenne</span>':'')+(x.lisatutkimus? '<br><span class="risk-tag">Lisätutkimustarve</span>':'')+
+          '</td><td>'+(x.toimenpide? esc(x.toimenpide) : '–')+'</td></tr>';
+      });
+      html += '</tbody></table>';
+    } else {
+      html += '<div style="font-size:13px;color:var(--ink-soft);padding:4px 0 16px;">Ei kirjattuja huomioita.</div>';
+    }
+
+    CHAPTERS.forEach(function(ch){
+      var chItems = list.filter(function(x){ return x.chNum === ch.num && x.status; });
+      if(!chItems.length) return;
+      html += '<div class="doc-chapter-title">'+ch.num+'. '+esc(ch.name)+'</div>';
+      chItems.forEach(function(x){
+        var cls = x.status === "ok" ? "ok" : "huom";
+        var label = x.status === "ok" ? "Ok" : "Huomio";
+        html += '<div class="doc-item"><div class="doc-item-head"><span>'+x.viite+' '+esc(x.text)+'</span><span class="doc-item-status '+cls+'">'+label+'</span></div>';
+        if(x.note) html += '<div class="doc-item-note">'+esc(x.note)+'</div>';
+        if(x.riski || x.lisatutkimus){
+          html += '<div class="doc-item-tags">';
+          if(x.riski) html += '<span class="risk-tag">Riskirakenne</span> ';
+          if(x.lisatutkimus) html += '<span class="risk-tag">Lisätutkimustarve</span>';
+          html += '</div>';
+        }
+        if(x.toimenpide) html += '<div class="doc-item-toimenpide"><b>Toimenpidesuositus:</b> '+esc(x.toimenpide)+'</div>';
+        if(x.photos.length){
+          html += '<div class="doc-item-photos">';
+          x.photos.forEach(function(p){ html += '<img src="'+p+'">'; });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+    });
+
+    if(eiTark.length){
+      html += '<div class="doc-chapter-title">Ei tarkastettu ('+eiTark.length+' kohtaa)</div>';
+      var byCh = {};
+      var order = [];
+      eiTark.forEach(function(x){
+        if(!byCh[x.chName]){ byCh[x.chName]=[]; order.push(x.chName); }
+        byCh[x.chName].push(x.viite+" "+x.text);
+      });
+      order.forEach(function(name){
+        html += '<div class="catlist-row"><span>'+esc(name)+'</span><span>'+byCh[name].length+' kohtaa</span></div>';
+      });
+    }
+
+    html += '<div class="section-note" style="margin-top:6px;">Muistiinpanot-tiedosto sisältää kaikki havainnot ja kuvat sellaisenaan. Kun avaat ladatun tiedoston selaimessa (esim. tietokoneella), voit tulostaa sen tai tallentaa PDF:ksi selaimen omasta tulostusvalikosta. Lopullisen, viimeistellyn raportin voi koota näiden pohjalta.</div>';
+    html += '<div class="doc-actions">';
+    html += '<button class="btn btn-primary" id="btn-export-notes" data-export-notes="'+insp.id+'">Lataa muistiinpanot</button>';
+    if(state.reportView !== "current"){
+      html += '<button class="btn btn-ghost" id="btn-delete-report" data-del="'+insp.id+'">Poista</button>';
+    }
+    html += '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function esc(s){
+    if(s===undefined||s===null) return "";
+    return String(s).replace(/[&<>"']/g, function(ch){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
+    });
+  }
+
+  /* ---------------- events ---------------- */
+  function bindEvents(){
+    app.querySelectorAll("[data-tab]").forEach(function(el){
+      el.addEventListener("click", function(){
+        state.tab = el.getAttribute("data-tab");
+        if(state.tab==="raportit") state.reportView = "list";
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-meta-key]").forEach(function(el){
+      el.addEventListener("input", function(){
+        state.current.meta[el.getAttribute("data-meta-key")] = el.value;
+        persistCurrent();
+        var topAddr = app.querySelector(".brand-addr");
+        if(topAddr && el.getAttribute("data-meta-key")==="osoite") topAddr.textContent = el.value || "Kohteen osoite puuttuu";
+      });
+    });
+    app.querySelectorAll("[data-rakenne-key]").forEach(function(el){
+      el.addEventListener("input", function(){
+        state.current.rakenne[el.getAttribute("data-rakenne-key")] = el.value;
+        persistCurrent();
+      });
+    });
+
+    app.querySelectorAll("[data-cat-toggle]").forEach(function(el){
+      el.addEventListener("click", function(){
+        var id = el.getAttribute("data-cat-toggle");
+        state.current.openCats[id] = !state.current.openCats[id];
+        persistCurrent();
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-set-status]").forEach(function(el){
+      el.addEventListener("click", function(){
+        var key = el.getAttribute("data-set-status");
+        var val = el.getAttribute("data-status-val");
+        var cur = state.current.items[key];
+        cur.status = (cur.status === val) ? null : val;
+        persistCurrent();
+        render();
+      });
+    });
+
+    app.querySelectorAll("[data-toggle-note]").forEach(function(el){
+      el.addEventListener("click", function(){
+        var key = el.getAttribute("data-toggle-note");
+        state.current.items[key]._noteOpen = !state.current.items[key]._noteOpen;
+        render();
+        var ta = app.querySelector('[data-note-key="'+key+'"]');
+        if(ta) ta.focus();
+      });
+    });
+    app.querySelectorAll("[data-toggle-toimenpide]").forEach(function(el){
+      el.addEventListener("click", function(){
+        var key = el.getAttribute("data-toggle-toimenpide");
+        state.current.items[key]._toimOpen = !state.current.items[key]._toimOpen;
+        render();
+        var ta = app.querySelector('[data-toim-key="'+key+'"]');
+        if(ta) ta.focus();
+      });
+    });
+    app.querySelectorAll("[data-note-key]").forEach(function(el){
+      el.addEventListener("input", function(){
+        state.current.items[el.getAttribute("data-note-key")].note = el.value;
+        persistCurrent();
+      });
+    });
+    app.querySelectorAll("[data-toim-key]").forEach(function(el){
+      el.addEventListener("input", function(){
+        state.current.items[el.getAttribute("data-toim-key")].toimenpide = el.value;
+        persistCurrent();
+      });
+    });
+    app.querySelectorAll("[data-toggle-flag]").forEach(function(el){
+      el.addEventListener("click", function(){
+        var key = el.getAttribute("data-toggle-flag");
+        var flag = el.getAttribute("data-flag");
+        state.current.items[key][flag] = !state.current.items[key][flag];
+        persistCurrent();
+        render();
+      });
+    });
+
+    app.querySelectorAll(".photo-native-input").forEach(function(el){
+      el.addEventListener("change", function(e){
+        var key = el.getAttribute("data-photo-key");
+        var file = e.target.files && e.target.files[0];
+        e.target.value = "";
+        if(file && key) handlePhotoFile(key, file);
+      });
+    });
+    app.querySelectorAll("[data-remove-photo]").forEach(function(el){
+      el.addEventListener("click", function(){
+        var key = el.getAttribute("data-remove-photo");
+        var idx = parseInt(el.getAttribute("data-photo-idx"), 10);
+        if(key === "cover") state.current.coverPhotos.splice(idx, 1);
+        else state.current.items[key].photos.splice(idx, 1);
+        persistCurrent();
+        render();
+      });
+    });
+
+    var bsave = document.getElementById("btn-save");
+    if(bsave) bsave.addEventListener("click", saveInspection);
+    var bnew = document.getElementById("btn-new");
+    if(bnew) bnew.addEventListener("click", newInspection);
+
+    app.querySelectorAll("[data-open-report]").forEach(function(el){
+      el.addEventListener("click", function(){
+        state.reportView = el.getAttribute("data-open-report");
+        render();
+      });
+    });
+    var back = app.querySelector("[data-back-to-list]");
+    if(back) back.addEventListener("click", function(){ state.reportView = "list"; render(); });
+
+    app.querySelectorAll("[data-quick-del]").forEach(function(el){
+      el.addEventListener("click", function(e){
+        e.stopPropagation();
+        var id = el.getAttribute("data-quick-del");
+        if(!confirm("Poistetaanko tämä raportti pysyvästi?")) return;
+        state.history = state.history.filter(function(h){ return h.id !== id; });
+        persistHistory();
+        render();
+      });
+    });
+
+    var bexport = app.querySelector("[data-export-notes]");
+    if(bexport) bexport.addEventListener("click", function(){
+      var id = bexport.getAttribute("data-export-notes");
+      var insp = id === state.current.id ? state.current : state.history.find(function(h){return h.id===id;});
+      if(insp) exportNotes(insp, bexport);
+    });
+
+    var bdel = document.getElementById("btn-delete-report");
+    if(bdel) bdel.addEventListener("click", function(){
+      if(!confirm("Poistetaanko tämä raportti pysyvästi?")) return;
+      var id = bdel.getAttribute("data-del");
+      state.history = state.history.filter(function(h){ return h.id !== id; });
+      persistHistory();
+      state.reportView = "list";
+      render();
+    });
+  }
+
+  function saveInspection(){
+    var c = counts(state.current);
+    if(c.answered === 0){
+      alert("Merkitse ainakin yksi kohta ennen tallennusta.");
+      return;
+    }
+    var snapshot = JSON.parse(JSON.stringify(state.current));
+    snapshot.savedAt = Date.now();
+    Object.keys(snapshot.items).forEach(function(k){
+      delete snapshot.items[k]._noteOpen;
+      delete snapshot.items[k]._toimOpen;
+    });
+    delete snapshot.openCats;
+    var existingIdx = -1;
+    for(var i=0;i<state.history.length;i++){ if(state.history[i].id === snapshot.id){ existingIdx = i; break; } }
+    if(existingIdx > -1) state.history[existingIdx] = snapshot;
+    else state.history.push(snapshot);
+    if(persistHistory()){
+      state.tab = "raportit";
+      state.reportView = snapshot.id;
+      render();
+    }
+  }
+
+  function newInspection(){
+    var c = counts(state.current);
+    if(c.answered > 0){
+      if(!confirm("Nykyinen tarkastus sisältää kirjaamattomia muutoksia. Aloitetaanko uusi tyhjä tarkastus? (Vanha tarkastus kannattaa tallentaa ensin raportiksi.)")) return;
+    }
+    state.current = freshCurrent();
+    state.tab = "kohde";
+    persistCurrent();
+    render();
+  }
+
+  function handlePhotoFile(key, file){
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var img = new Image();
+      img.onload = function(){
+        var maxW = 900;
+        var scale = Math.min(1, maxW / img.width);
+        var w = Math.round(img.width * scale);
+        var h = Math.round(img.height * scale);
+        var canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        var dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+        if(key === "cover") state.current.coverPhotos.push(dataUrl);
+        else state.current.items[key].photos.push(dataUrl);
+        persistCurrent();
+        render();
+      };
+      img.onerror = function(){ alert("Kuvan lukeminen epäonnistui. Kokeile uudelleen."); };
+      img.src = ev.target.result;
+    };
+    reader.onerror = function(){ alert("Kuvan lukeminen epäonnistui. Kokeile uudelleen."); };
+    reader.readAsDataURL(file);
+  }
+
+  /* ---------------- Muistiinpanojen vienti (kevyt, itsenäinen HTML-tiedosto) ---------------- */
+  function sanitizeFilename(s){
+    s = (s || "").trim();
+    s = s.replace(/[\\/:*?"<>|]/g, "-");
+    s = s.replace(/\s+/g, " ").trim();
+    return s;
+  }
+  function notesFilenameFor(insp){
+    var osoite = sanitizeFilename(insp.meta.osoite) || "Kuntotarkastus";
+    var pvm = insp.meta.pvm || todayISO();
+    return osoite + " - muistiinpanot " + pvm + ".html";
+  }
+
+  function buildStandaloneNotesHtml(insp){
+    var list = itemsOf(insp);
+    var c = counts(insp);
+    var osoite = esc(insp.meta.osoite) || "Kuntotarkastus";
+
+    var css = "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;max-width:720px;margin:0 auto;padding:28px 20px 60px;color:#182225;background:#fff;line-height:1.5}"+
+      "h1{font-size:26px;margin:0 0 2px}.sub{color:#55625F;font-size:13px;margin-bottom:20px}"+
+      ".meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;font-size:13.5px;margin-bottom:20px}"+
+      ".meta div b{display:block;font-size:10.5px;color:#55625F;font-weight:600;text-transform:uppercase;letter-spacing:.02em}"+
+      ".meta .full{grid-column:1/-1}"+
+      ".chapter{font-size:19px;font-weight:700;margin:26px 0 6px;padding-top:12px;border-top:2px solid #14293B}"+
+      ".chapter:first-of-type{border-top:none;margin-top:4px}"+
+      ".it{padding:10px 0;border-top:1px solid #D3D7D3}.it:first-child{border-top:none}"+
+      ".ithead{display:flex;justify-content:space-between;gap:10px;font-weight:600;font-size:14px}"+
+      ".tag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;height:fit-content}"+
+      ".tag.ok{background:#E4F3EA;color:#1F7A4D}.tag.huom{background:#FBE7E5;color:#C62A2A}"+
+      ".note{font-size:13.5px;margin-top:5px;white-space:pre-wrap}"+
+      ".toim{font-size:12.5px;color:#55625F;margin-top:6px}.toim b{color:#182225}"+
+      ".flags{margin-top:5px}.rtag{display:inline-block;font-size:10px;font-weight:700;color:#8A5A00;background:#FCEFD8;padding:1px 7px;border-radius:10px;margin-right:4px}"+
+      ".photos{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.photos img{width:140px;height:140px;object-fit:cover;border-radius:7px;border:1px solid #D3D7D3}"+
+      ".skiprow{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #D3D7D3;font-size:13px}"+
+      "@media print{body{padding:0}}";
+
+    var html = '<!doctype html><html lang="fi"><head><meta charset="utf-8"><title>'+osoite+' - muistiinpanot</title><style>'+css+'</style></head><body>';
+    html += '<h1>'+osoite+'</h1><div class="sub">Kuntotarkastuksen kenttämuistiinpanot &middot; viety '+esc(fmtDateTime(Date.now()))+'</div>';
+
+    if(insp.coverPhotos && insp.coverPhotos.length){
+      html += '<div class="photos" style="margin-bottom:18px">';
+      insp.coverPhotos.forEach(function(src){ html += '<img src="'+src+'" style="width:220px;height:165px">'; });
+      html += '</div>';
+    }
+
+    html += '<div class="meta">';
+    META_FIELDS.forEach(function(f){
+      var v = insp.meta[f.k];
+      if(!v) return;
+      html += '<div'+(f.full?' class="full"':'')+'><b>'+esc(f.l)+'</b>'+esc(f.k==="pvm"?fmtDate(v):v)+'</div>';
+    });
+    html += '</div>';
+
+    var rk = RAKENNE_FIELDS.filter(function(f){ return insp.rakenne[f.k]; });
+    if(rk.length){
+      html += '<div class="chapter" style="margin-top:4px">Rakennetyypit ja LVI-tekniikka</div><div class="meta">';
+      rk.forEach(function(f){ html += '<div><b>'+esc(f.l)+'</b>'+esc(insp.rakenne[f.k])+'</div>'; });
+      html += '</div>';
+    }
+
+    html += '<div class="chapter">Yhteenveto</div><div class="meta">'+
+      '<div><b>Tarkastettu, ok</b>'+c.ok+'</div><div><b>Huomioita</b>'+c.huom+'</div>'+
+      '<div><b>Riskirakenne-merkintöjä</b>'+c.risk+'</div><div><b>Ei tarkastettu</b>'+(c.total-c.answered)+'</div></div>';
+
+    CHAPTERS.forEach(function(ch){
+      var chItems = list.filter(function(x){ return x.chNum === ch.num && x.status; });
+      if(!chItems.length) return;
+      html += '<div class="chapter">'+ch.num+'. '+esc(ch.name)+'</div>';
+      chItems.forEach(function(x){
+        var cls = x.status === "ok" ? "ok" : "huom";
+        var label = x.status === "ok" ? "Ok" : "Huomio";
+        html += '<div class="it"><div class="ithead"><span>'+x.viite+' '+esc(x.text)+'</span><span class="tag '+cls+'">'+label+'</span></div>';
+        if(x.note) html += '<div class="note">'+esc(x.note)+'</div>';
+        if(x.riski || x.lisatutkimus){
+          html += '<div class="flags">';
+          if(x.riski) html += '<span class="rtag">Riskirakenne</span>';
+          if(x.lisatutkimus) html += '<span class="rtag">Lisätutkimustarve</span>';
+          html += '</div>';
+        }
+        if(x.toimenpide) html += '<div class="toim"><b>Toimenpidesuositus:</b> '+esc(x.toimenpide)+'</div>';
+        if(x.photos.length){
+          html += '<div class="photos">';
+          x.photos.forEach(function(p){ html += '<img src="'+p+'">'; });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+    });
+
+    var eiTark = list.filter(function(x){ return !x.status || x.status==="ei_tarkastettu"; });
+    if(eiTark.length){
+      html += '<div class="chapter">Ei tarkastettu ('+eiTark.length+' kohtaa)</div>';
+      var byCh = {}, order = [];
+      eiTark.forEach(function(x){
+        if(!byCh[x.chName]){ byCh[x.chName]=[]; order.push(x.chName); }
+        byCh[x.chName].push(x.viite+" "+x.text);
+      });
+      order.forEach(function(name){
+        html += '<div class="skiprow"><span>'+esc(name)+'</span><span>'+byCh[name].length+' kohtaa</span></div>';
+      });
+    }
+
+    html += '</body></html>';
+    return html;
+  }
+
+  function saveOrDownloadText(text, filename, mime){
+    var blob = new Blob([text], { type: mime });
+    if(window.claude && typeof window.claude.use === "function"){
+      return window.claude.use("downloads").then(function(downloads){
+        if(!downloads) return browserDownload(blob, filename);
+        return downloads.save({ filename: filename, data: blob }).catch(function(err){
+          if(err && err.code === "declined") return null;
+          return browserDownload(blob, filename);
+        });
+      }).catch(function(){ return browserDownload(blob, filename); });
+    }
+    return browserDownload(blob, filename);
+  }
+
+  function browserDownload(blob, filename){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 15000);
+  }
+
+  function exportNotes(insp, triggerBtn){
+    if(triggerBtn) triggerBtn.disabled = true;
+    try {
+      var html = buildStandaloneNotesHtml(insp);
+      var filename = notesFilenameFor(insp);
+      Promise.resolve(saveOrDownloadText(html, filename, "text/html")).then(function(){
+        if(triggerBtn) triggerBtn.disabled = false;
+      });
+    } catch(e){
+      console.error(e);
+      alert("Muistiinpanojen vienti epäonnistui. Kokeile uudelleen.");
+      if(triggerBtn) triggerBtn.disabled = false;
+    }
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
