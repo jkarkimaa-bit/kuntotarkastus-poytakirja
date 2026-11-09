@@ -370,9 +370,53 @@
     try { var raw = localStorage.getItem(key); if(!raw) return fallback; return JSON.parse(raw); }
     catch(e){ return fallback; }
   }
-  function saveJSON(key, val){
+  function saveJSONLocal(key, val){
     try { localStorage.setItem(key, JSON.stringify(val)); return true; }
     catch(e){ console.error("Tallennus epäonnistui", e); return false; }
+  }
+
+  /* --- IndexedDB: iso tallennustila kuville (localStorage vain ~5 Mt) --- */
+  var idbPromise = null, idbOk = false;
+  function idbOpen(){
+    if(idbPromise) return idbPromise;
+    idbPromise = new Promise(function(resolve, reject){
+      if(!window.indexedDB){ reject(new Error("no idb")); return; }
+      var rq = indexedDB.open("ktp_db", 1);
+      rq.onupgradeneeded = function(){ rq.result.createObjectStore("kv"); };
+      rq.onsuccess = function(){ resolve(rq.result); };
+      rq.onerror = function(){ reject(rq.error); };
+    });
+    return idbPromise;
+  }
+  function idbGet(key){
+    return idbOpen().then(function(db){ return new Promise(function(res, rej){
+      var rq = db.transaction("kv","readonly").objectStore("kv").get(key);
+      rq.onsuccess = function(){ res(rq.result); }; rq.onerror = function(){ rej(rq.error); };
+    });});
+  }
+  function idbSet(key, val){
+    return idbOpen().then(function(db){ return new Promise(function(res, rej){
+      var tx = db.transaction("kv","readwrite");
+      tx.objectStore("kv").put(JSON.parse(JSON.stringify(val)), key);
+      tx.oncomplete = function(){ res(true); };
+      tx.onerror = function(){ rej(tx.error); }; tx.onabort = function(){ rej(tx.error); };
+    });});
+  }
+  var storageWarned = false;
+  function warnStorage(){
+    if(storageWarned) return; storageWarned = true;
+    alert("Tallennus laitteen muistiin epäonnistui. ÄLÄ sulje sovellusta: vie tarkastus heti talteen (Raportit → Kesken oleva tarkastus → Jaa / Lataa).");
+  }
+  // Palauttaa Promisen (true/false)
+  function saveJSON(key, val){
+    if(idbOk){
+      return idbSet(key, val).then(function(){ return true; }).catch(function(e){
+        console.error("IDB-tallennus epäonnistui", e); warnStorage(); return false;
+      });
+    }
+    var ok = saveJSONLocal(key, val);
+    if(!ok) warnStorage();
+    return Promise.resolve(ok);
   }
 
   var state = {
@@ -390,12 +434,8 @@
     RAKENNE_FIELDS.forEach(function(f){ if(i.rakenne[f.k]===undefined) i.rakenne[f.k]=""; });
   })(state.current);
 
-  function persistCurrent(){ saveJSON(CUR_KEY, state.current); }
-  function persistHistory(){
-    var ok = saveJSON(HIST_KEY, state.history);
-    if(!ok) alert("Tallennustila on täynnä. Poista vanhoja tarkastuksia tai kuvia ja yritä uudelleen.");
-    return ok;
-  }
+  function persistCurrent(){ return saveJSON(CUR_KEY, state.current); }
+  function persistHistory(){ return saveJSON(HIST_KEY, state.history); }
 
   function itemsOf(insp){
     var list = [];
@@ -701,9 +741,10 @@
       });
     }
 
-    html += '<div class="section-note" style="margin-top:6px;">Muistiinpanot-tiedosto sisältää kaikki havainnot ja kuvat sellaisenaan. Kun avaat ladatun tiedoston selaimessa (esim. tietokoneella), voit tulostaa sen tai tallentaa PDF:ksi selaimen omasta tulostusvalikosta. Lopullisen, viimeistellyn raportin voi koota näiden pohjalta.</div>';
+    html += '<div class="section-note" style="margin-top:6px;">Muistiinpanot-tiedosto sisältää kaikki havainnot ja kuvat sellaisenaan. <b>Jaa / lähetä</b> avaa puhelimen jakovalikon (sähköposti, Drive, OneDrive, WhatsApp…); <b>Lataa tiedostona</b> tallentaa tiedoston puhelimen Lataukset-kansioon. Kun avaat ladatun tiedoston selaimessa (esim. tietokoneella), voit tulostaa sen tai tallentaa PDF:ksi selaimen omasta tulostusvalikosta. Lopullisen, viimeistellyn raportin voi koota näiden pohjalta.</div>';
     html += '<div class="doc-actions">';
-    html += '<button class="btn btn-primary" id="btn-export-notes" data-export-notes="'+insp.id+'">Lataa muistiinpanot</button>';
+    html += '<button class="btn btn-primary" id="btn-export-notes" data-export-notes="'+insp.id+'">Jaa / lähetä</button>';
+    html += '<button class="btn btn-ghost" id="btn-download-notes" data-download-notes="'+insp.id+'">Lataa tiedostona</button>';
     if(state.reportView !== "current"){
       html += '<button class="btn btn-ghost" id="btn-delete-report" data-del="'+insp.id+'">Poista</button>';
     }
@@ -852,7 +893,13 @@
     if(bexport) bexport.addEventListener("click", function(){
       var id = bexport.getAttribute("data-export-notes");
       var insp = id === state.current.id ? state.current : state.history.find(function(h){return h.id===id;});
-      if(insp) exportNotes(insp, bexport);
+      if(insp) exportNotes(insp, bexport, "share");
+    });
+    var bdl = app.querySelector("[data-download-notes]");
+    if(bdl) bdl.addEventListener("click", function(){
+      var id = bdl.getAttribute("data-download-notes");
+      var insp = id === state.current.id ? state.current : state.history.find(function(h){return h.id===id;});
+      if(insp) exportNotes(insp, bdl, "download");
     });
 
     var bdel = document.getElementById("btn-delete-report");
@@ -883,11 +930,12 @@
     for(var i=0;i<state.history.length;i++){ if(state.history[i].id === snapshot.id){ existingIdx = i; break; } }
     if(existingIdx > -1) state.history[existingIdx] = snapshot;
     else state.history.push(snapshot);
-    if(persistHistory()){
+    persistHistory().then(function(ok){
       state.tab = "raportit";
       state.reportView = snapshot.id;
       render();
-    }
+      if(!ok) alert("Raporttia ei saatu tallennettua laitteen muistiin, mutta se on yhä auki. Vie se heti talteen painikkeella \"Jaa / lähetä\" tai \"Lataa tiedostona\".");
+    });
   }
 
   function newInspection(){
@@ -1033,8 +1081,19 @@
     return html;
   }
 
-  function saveOrDownloadText(text, filename, mime){
+  function saveOrDownloadText(text, filename, mime, mode){
     var blob = new Blob([text], { type: mime });
+    if(mode === "share" && navigator.share && navigator.canShare && typeof File === "function"){
+      try {
+        var file = new File([blob], filename, { type: mime });
+        if(navigator.canShare({ files: [file] })){
+          return navigator.share({ files: [file], title: filename }).catch(function(err){
+            if(err && err.name === "AbortError") return null;
+            return browserDownload(blob, filename);
+          });
+        }
+      } catch(e){ console.warn("Jako ei onnistunut", e); }
+    }
     if(window.claude && typeof window.claude.use === "function"){
       return window.claude.use("downloads").then(function(downloads){
         if(!downloads) return browserDownload(blob, filename);
@@ -1058,12 +1117,12 @@
     setTimeout(function(){ URL.revokeObjectURL(url); }, 15000);
   }
 
-  function exportNotes(insp, triggerBtn){
+  function exportNotes(insp, triggerBtn, mode){
     if(triggerBtn) triggerBtn.disabled = true;
     try {
       var html = buildStandaloneNotesHtml(insp);
       var filename = notesFilenameFor(insp);
-      Promise.resolve(saveOrDownloadText(html, filename, "text/html")).then(function(){
+      Promise.resolve(saveOrDownloadText(html, filename, "text/html", mode)).then(function(){
         if(triggerBtn) triggerBtn.disabled = false;
       });
     } catch(e){
@@ -1073,7 +1132,33 @@
     }
   }
 
+  function applyLoaded(cur, hist){
+    if(cur){ state.current = cur; }
+    if(hist){ state.history = hist; }
+    if(!state.current.meta) state.current.meta = blankMeta();
+    if(!state.current.rakenne) state.current.rakenne = blankRakenne();
+    if(!state.current.coverPhotos) state.current.coverPhotos = [];
+    META_FIELDS.forEach(function(f){ if(state.current.meta[f.k]===undefined) state.current.meta[f.k]=""; });
+    RAKENNE_FIELDS.forEach(function(f){ if(state.current.rakenne[f.k]===undefined) state.current.rakenne[f.k]=""; });
+  }
+
   render();
+  try { if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
+  Promise.all([idbGet(CUR_KEY), idbGet(HIST_KEY)]).then(function(r){
+    idbOk = true;
+    if(r[0] || r[1]){
+      applyLoaded(r[0], r[1]);
+      render();
+      return;
+    }
+    // Siirto vanhasta localStoragesta IndexedDB:hen
+    return Promise.all([idbSet(CUR_KEY, state.current), idbSet(HIST_KEY, state.history)]).then(function(){
+      try { localStorage.removeItem(CUR_KEY); localStorage.removeItem(HIST_KEY); } catch(e){}
+    });
+  }).catch(function(e){
+    console.warn("IndexedDB ei käytettävissä, käytetään localStoragea", e);
+    idbOk = false;
+  });
 })();
 </script>
 </body>
