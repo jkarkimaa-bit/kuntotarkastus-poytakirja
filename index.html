@@ -133,6 +133,10 @@
   .flag-toggles { display: flex; gap: 8px; flex-wrap: wrap; }
   .chip-toggle { padding: 6px 11px; border-radius: 20px; border: 1px solid var(--line); background: var(--surface-2); font-size: 12px; font-weight: 600; color: var(--ink-soft); font-family: var(--font-body); }
   .chip-toggle.on { background: var(--risk-bg); border-color: var(--risk-ink); color: var(--risk-ink); }
+  .skip-box { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--skip-bg); display: flex; flex-direction: column; gap: 7px; }
+  .chip-toggle.skip-chip.on { background: var(--surface); border-color: var(--ink); color: var(--ink); }
+  .skip-lisa { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-family: var(--font-body); font-size: 13px; background: var(--surface); color: var(--ink); }
+  .skip-reason { font-size: 12.5px; color: var(--ink-soft); }
 
   .photo-row { display: flex; flex-wrap: wrap; gap: 8px; }
   .photo-thumb { position: relative; width: 64px; height: 64px; border-radius: 7px; overflow: hidden; border: 1px solid var(--line); }
@@ -291,6 +295,23 @@
 
   var TOTAL_ITEMS = CHAPTERS.reduce(function(s,c){ return s + c.items.length; }, 0);
 
+  /* Syyt "Ei tarkastettu" -kohdille: siirtyvät raportin rajauksiin (KH 90-00394 kohdat 8 ja 10) */
+  var SKIP_REASONS = [
+    "Tilassa tavaraa",
+    "Pinnat peitetty (kalusteet, materiaalit)",
+    "Ei kulkuyhteyttä / luukku ei auennut",
+    "Lumi tai jää",
+    "Vaarallinen kulkureitti",
+    "Ei tikkaita tai kulkusiltoja",
+    "Ei kuulu kohteeseen",
+    "Muu syy"
+  ];
+  function skipText(x){
+    var s = x.syy || "Syy kirjaamatta";
+    if(x.syyLisa) s += ": " + x.syyLisa;
+    return s;
+  }
+
   var META_FIELDS = [
     {k:"osoite", l:"Kohteen osoite", full:true},
     {k:"omistaja", l:"Omistaja"},
@@ -444,7 +465,8 @@
         var key = c.id+"-"+idx;
         var d = insp.items[key] || {status:null, note:"", toimenpide:"", riski:false, lisatutkimus:false, photos:[]};
         list.push({ key:key, chNum:c.num, chName:c.name, idx:idx, viite:c.num+"."+(idx+1), text:t,
-          status:d.status, note:d.note, toimenpide:d.toimenpide||"", riski:!!d.riski, lisatutkimus:!!d.lisatutkimus, photos:d.photos||[] });
+          status:d.status, note:d.note, toimenpide:d.toimenpide||"", riski:!!d.riski, lisatutkimus:!!d.lisatutkimus, photos:d.photos||[],
+          syy:d.syy||"", syyLisa:d.syyLisa||"" });
       });
     });
     return list;
@@ -452,10 +474,12 @@
 
   function counts(insp){
     var list = itemsOf(insp);
-    var c = { ok:0, huom:0, risk:0, total:list.length, answered:0 };
+    var c = { ok:0, huom:0, risk:0, skip:0, unset:0, total:list.length, answered:0 };
     list.forEach(function(x){
       if(x.status==="ok") c.ok++;
       else if(x.status==="huomio") c.huom++;
+      else if(x.status==="ei_tarkastettu") c.skip++;
+      else c.unset++;
       if(x.riski) c.risk++;
     });
     c.answered = list.filter(function(x){ return x.status; }).length;
@@ -566,6 +590,13 @@
         html += '<button class="seg-btn'+(d.status==="huomio"?" on-huom":"")+'" data-set-status="'+key+'" data-status-val="huomio">Huomio</button>';
         html += '<button class="seg-btn'+(d.status==="ei_tarkastettu"?" on-skip":"")+'" data-set-status="'+key+'" data-status-val="ei_tarkastettu">Ei tarkastettu</button>';
         html += '</div>';
+        if(d.status==="ei_tarkastettu"){
+          html += '<div class="skip-box"><div class="note-label">MIKSI EI TARKASTETTU? (siirtyy raportin rajauksiin)</div><div class="flag-toggles">';
+          SKIP_REASONS.forEach(function(r){
+            html += '<button class="chip-toggle skip-chip'+(d.syy===r?" on":"")+'" data-set-skip="'+key+'" data-skip-val="'+esc(r)+'">'+esc(r)+'</button>';
+          });
+          html += '</div><input type="text" class="skip-lisa" data-skip-lisa="'+key+'" value="'+esc(d.syyLisa||"")+'" placeholder="Tarkenne, esim. ullakon luukku maalattu kiinni"></div>';
+        }
         html += '<div class="item-actions">';
         html += '<button class="link-btn" data-toggle-note="'+key+'">Havainto'+(d.note? ' <span class="count">&#9679;</span>':'')+'</button>';
         html += '<button class="link-btn" data-toggle-toimenpide="'+key+'">Toimenpide'+(d.toimenpide? ' <span class="count">&#9679;</span>':'')+'</button>';
@@ -650,7 +681,8 @@
     var c = counts(insp);
     var huomiot = list.filter(function(x){ return x.status==="huomio"; });
     var okit = list.filter(function(x){ return x.status==="ok"; });
-    var eiTark = list.filter(function(x){ return !x.status || x.status==="ei_tarkastettu"; });
+    var eiTark = list.filter(function(x){ return x.status==="ei_tarkastettu"; });
+    var kirjaamatta = list.filter(function(x){ return !x.status; });
 
     var html = '<div class="report-back"><button data-back-to-list>&#8592; Kaikki raportit</button></div>';
     html += '<div class="report-doc" id="printArea">';
@@ -688,6 +720,7 @@
     html += '<div class="summary-pill huom"><div class="n">'+c.huom+'</div><div class="l">Huomioita</div></div>';
     html += '<div class="summary-pill risk"><div class="n">'+c.risk+'</div><div class="l">Riskirakenne</div></div>';
     html += '<div class="summary-pill"><div class="n">'+eiTark.length+'</div><div class="l">Ei tarkastettu</div></div>';
+    html += '<div class="summary-pill"><div class="n">'+kirjaamatta.length+'</div><div class="l">Kirjaamatta</div></div>';
     html += '</div>';
 
     html += '<div class="doc-chapter-title" style="margin-top:0;">Oleellisimmat havainnot</div>';
@@ -704,7 +737,7 @@
     }
 
     CHAPTERS.forEach(function(ch){
-      var chItems = list.filter(function(x){ return x.chNum === ch.num && x.status; });
+      var chItems = list.filter(function(x){ return x.chNum === ch.num && (x.status==="ok" || x.status==="huomio"); });
       if(!chItems.length) return;
       html += '<div class="doc-chapter-title">'+ch.num+'. '+esc(ch.name)+'</div>';
       chItems.forEach(function(x){
@@ -729,10 +762,25 @@
     });
 
     if(eiTark.length){
-      html += '<div class="doc-chapter-title">Ei tarkastettu ('+eiTark.length+' kohtaa)</div>';
+      html += '<div class="doc-chapter-title">Rajaukset: ei tarkastettu ('+eiTark.length+' kohtaa)</div>';
+      eiTark.forEach(function(x){
+        html += '<div class="doc-item"><div class="doc-item-head"><span>'+x.viite+' '+esc(x.text)+'</span><span class="doc-item-status">Ei tarkastettu</span></div>';
+        html += '<div class="skip-reason">'+esc(skipText(x))+'</div>';
+        if(x.note) html += '<div class="doc-item-note">'+esc(x.note)+'</div>';
+        if(x.photos.length){
+          html += '<div class="doc-item-photos">';
+          x.photos.forEach(function(p){ html += '<img src="'+p+'">'; });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+    }
+
+    if(kirjaamatta.length){
+      html += '<div class="doc-chapter-title">Kirjaamatta ('+kirjaamatta.length+' kohtaa)</div>';
       var byCh = {};
       var order = [];
-      eiTark.forEach(function(x){
+      kirjaamatta.forEach(function(x){
         if(!byCh[x.chName]){ byCh[x.chName]=[]; order.push(x.chName); }
         byCh[x.chName].push(x.viite+" "+x.text);
       });
@@ -802,6 +850,22 @@
         cur.status = (cur.status === val) ? null : val;
         persistCurrent();
         render();
+      });
+    });
+
+    app.querySelectorAll("[data-set-skip]").forEach(function(el){
+      el.addEventListener("click", function(){
+        var cur = state.current.items[el.getAttribute("data-set-skip")];
+        var val = el.getAttribute("data-skip-val");
+        cur.syy = (cur.syy === val) ? "" : val;
+        persistCurrent();
+        render();
+      });
+    });
+    app.querySelectorAll("[data-skip-lisa]").forEach(function(el){
+      el.addEventListener("input", function(){
+        state.current.items[el.getAttribute("data-skip-lisa")].syyLisa = el.value;
+        persistCurrent();
       });
     });
 
@@ -1009,6 +1073,7 @@
       ".flags{margin-top:5px}.rtag{display:inline-block;font-size:10px;font-weight:700;color:#8A5A00;background:#FCEFD8;padding:1px 7px;border-radius:10px;margin-right:4px}"+
       ".photos{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.photos img{width:140px;height:140px;object-fit:cover;border-radius:7px;border:1px solid #D3D7D3}"+
       ".skiprow{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #D3D7D3;font-size:13px}"+
+      ".tag.skip{background:#ECEDEB;color:#55625F}.syy{font-size:13px;color:#55625F;margin-top:4px}"+
       "@media print{body{padding:0}}";
 
     var html = '<!doctype html><html lang="fi"><head><meta charset="utf-8"><title>'+osoite+' - muistiinpanot</title><style>'+css+'</style></head><body>';
@@ -1037,10 +1102,11 @@
 
     html += '<div class="chapter">Yhteenveto</div><div class="meta">'+
       '<div><b>Tarkastettu, ok</b>'+c.ok+'</div><div><b>Huomioita</b>'+c.huom+'</div>'+
-      '<div><b>Riskirakenne-merkintöjä</b>'+c.risk+'</div><div><b>Ei tarkastettu</b>'+(c.total-c.answered)+'</div></div>';
+      '<div><b>Riskirakenne-merkintöjä</b>'+c.risk+'</div><div><b>Ei tarkastettu</b>'+c.skip+'</div>'+
+      '<div><b>Kirjaamatta</b>'+c.unset+'</div></div>';
 
     CHAPTERS.forEach(function(ch){
-      var chItems = list.filter(function(x){ return x.chNum === ch.num && x.status; });
+      var chItems = list.filter(function(x){ return x.chNum === ch.num && (x.status==="ok" || x.status==="huomio"); });
       if(!chItems.length) return;
       html += '<div class="chapter">'+ch.num+'. '+esc(ch.name)+'</div>';
       chItems.forEach(function(x){
@@ -1064,11 +1130,27 @@
       });
     });
 
-    var eiTark = list.filter(function(x){ return !x.status || x.status==="ei_tarkastettu"; });
+    var eiTark = list.filter(function(x){ return x.status==="ei_tarkastettu"; });
     if(eiTark.length){
-      html += '<div class="chapter">Ei tarkastettu ('+eiTark.length+' kohtaa)</div>';
-      var byCh = {}, order = [];
+      html += '<div class="chapter">Rajaukset: ei tarkastettu ('+eiTark.length+' kohtaa)</div>';
       eiTark.forEach(function(x){
+        html += '<div class="it"><div class="ithead"><span>'+x.viite+' '+esc(x.text)+'</span><span class="tag skip">Ei tarkastettu</span></div>';
+        html += '<div class="syy">Syy: '+esc(skipText(x))+'</div>';
+        if(x.note) html += '<div class="note">'+esc(x.note)+'</div>';
+        if(x.photos.length){
+          html += '<div class="photos">';
+          x.photos.forEach(function(p){ html += '<img src="'+p+'">'; });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+    }
+
+    var kirjaamatta = list.filter(function(x){ return !x.status; });
+    if(kirjaamatta.length){
+      html += '<div class="chapter">Kirjaamatta ('+kirjaamatta.length+' kohtaa)</div>';
+      var byCh = {}, order = [];
+      kirjaamatta.forEach(function(x){
         if(!byCh[x.chName]){ byCh[x.chName]=[]; order.push(x.chName); }
         byCh[x.chName].push(x.viite+" "+x.text);
       });
