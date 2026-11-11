@@ -250,6 +250,27 @@
   .doc-photos figcaption { font-size: 11px; color: var(--ink-soft); margin-top: 3px; line-height: 1.3; }
   .doc-lbl.risk b { color: var(--risk-ink); }
 
+  /* ---- v5: ennakkotiedot (tuonti, merkki, kuittaus) ---- */
+  .enn-badge { margin-top: 5px; padding: 5px 7px; border-radius: 7px; background: #E6EEF6; border: 1px dashed #5B7FA3; font-size: 11px; color: #1E3A52; line-height: 1.35; }
+  :root[data-theme="dark"] .enn-badge { background: #16283A; color: #A9C6E0; border-color: #4A6E92; }
+  .enn-badge.t-vahvistettu { background: var(--ok-bg); border: 1px solid var(--ok); color: var(--ok); }
+  .enn-badge.t-korjattu { background: var(--risk-bg); border: 1px solid var(--risk-ink); color: var(--risk-ink); }
+  .enn-badge.t-ei_tarkistettu { background: var(--skip-bg); border: 1px solid var(--ink-soft); color: var(--ink-soft); }
+  .enn-head b { font-weight: 700; }
+  .enn-orig { margin-top: 2px; color: var(--ink); }
+  .enn-btns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .enn-btn { font-family: var(--font-body); font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); }
+  .enn-btn.on { background: var(--navy-2); border-color: var(--navy-2); color: #fff; }
+  .enn-item { margin: -2px 0 9px; }
+  .enn-item .enn-badge { margin-top: 0; font-size: 12px; }
+  .enn-card { border: 1.5px solid #5B7FA3; }
+  .enn-list-row { padding: 8px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+  .enn-list-row:first-child { border-top: none; }
+  .enn-list-row .lbl { font-weight: 700; }
+  .enn-ul { margin: 4px 0 8px; padding-left: 18px; font-size: 12.5px; line-height: 1.45; }
+  .enn-sub { font-size: 10.5px; font-weight: 700; color: var(--ink-soft); margin-top: 10px; letter-spacing: 0.2px; }
+  .import-input { font-family: var(--font-body); font-size: 12px; max-width: 100%; }
+
   @media print {
     .topbar, .bottombar, .report-back, .doc-actions { display: none !important; }
     body, #app { background: #fff; }
@@ -264,7 +285,7 @@
 (function(){
   "use strict";
 
-  var APP_VERSION = "2026-11-11 (v4, RT 103996)";
+  var APP_VERSION = "2026-11-11 (v5, ennakkotiedot)";
 
   /* ================= Rakenne: kuntotarkastuksen laajuus KH 90-00394 mukaisesti ================= */
   var CHAPTERS = [
@@ -586,6 +607,186 @@
     ["asiak_muu"]
   );
 
+  /* ================= v5: ennakkotiedot =================
+     Ennakkotieto on tarkistettava tieto, ei havainto. Tilaa (Ok / Huomio / Ei tarkastettu) ei tuoda koskaan.
+     Polut: "meta.<k>", "rakenne.<k>", "asiakirjat.<k>" -> insp.ennakko.kentat[polku]; "item:<avain>" -> insp.items[avain].ennakko */
+  var ENN_TILAT = [["vahvistettu","Vahvistettu"],["korjattu","Korjattu"],["ei_tarkistettu","Ei tarkistettu"]];
+  function ennTilaText(t){
+    for(var i=0;i<ENN_TILAT.length;i++){ if(ENN_TILAT[i][0]===t) return ENN_TILAT[i][1]; }
+    return "Tarkistamatta";
+  }
+  function getEnn(insp, path){
+    if(path.indexOf("item:") === 0){ var it = insp.items[path.slice(5)]; return (it && it.ennakko) || null; }
+    return (insp.ennakko && insp.ennakko.kentat && insp.ennakko.kentat[path]) || null;
+  }
+  function ennPathLabel(path){
+    var p = path.split("."), grp = p[0], k = p.slice(1).join(".");
+    if(path.indexOf("item:") === 0){
+      var key = path.slice(5), a = key.split("-"), ch = CHAPTERS.filter(function(c){ return c.id === a[0]; })[0];
+      return ch ? ch.num + "." + (parseInt(a[1],10)+1) + " " + ch.items[parseInt(a[1],10)] : key;
+    }
+    var lists = grp === "rakenne" ? [RAKENNE_FIELDS] : grp === "asiakirjat" ? [DOCS] : [META_FIELDS, RADON_FIELDS, LAAJUUS_FIELDS, HAAST_FIELDS, LISA_FIELDS];
+    for(var i=0;i<lists.length;i++){
+      var f = lists[i].filter(function(x){ return x.k === k; })[0];
+      if(f) return (grp === "asiakirjat" ? "Asiakirja: " : "") + f.l;
+    }
+    var d = DOCS.filter(function(x){ return x.date === k; })[0];
+    if(d) return d.l.replace(/ \(.*\)$/,"") + ": päiväys";
+    if(k === "asiak_muu") return "Muut asiakirjat";
+    return k;
+  }
+  function ennOrigText(e, path){
+    if(path.indexOf("item:") === 0) return e.teksti || "";
+    if(e.arvo === true) return "Käytettävissä";
+    return String(e.arvo === undefined ? "" : e.arvo);
+  }
+  function ennAllPaths(insp){
+    var out = [];
+    if(insp.ennakko && insp.ennakko.kentat) Object.keys(insp.ennakko.kentat).forEach(function(p){ out.push(p); });
+    CHAPTERS.forEach(function(c){ c.items.forEach(function(t, i){
+      var k = c.id+"-"+i; if(insp.items[k] && insp.items[k].ennakko) out.push("item:"+k);
+    }); });
+    return out;
+  }
+  function ennCounts(insp){
+    var ps = ennAllPaths(insp), done = 0;
+    ps.forEach(function(p){ var e = getEnn(insp, p); if(e && e.tila) done++; });
+    return {total: ps.length, done: done};
+  }
+  function ennBadgeInner(e, path, showOrig){
+    var h = '<div class="enn-head"><b>Ennakko</b> · ' + esc(e.lahde || "lähde puuttuu") + ' · <b>' + esc(ennTilaText(e.tila)) + '</b></div>';
+    if(path.indexOf("item:") === 0){
+      if(e.teksti) h += '<div class="enn-orig">' + esc(e.teksti) + '</div>';
+      if(e.riskiEhdokas) h += '<div class="enn-orig"><b>Riskirakenne-ehdokas, tarkista:</b> ' + esc(e.riskiEhdokas) + '</div>';
+    } else if(showOrig){
+      h += '<div class="enn-orig">' + esc(ennOrigText(e, path)) + '</div>';
+    } else if(e.tila === "korjattu"){
+      h += '<div class="enn-orig">Ennakkoarvo: ' + esc(ennOrigText(e, path)) + '</div>';
+    }
+    h += '<div class="enn-btns">';
+    ENN_TILAT.forEach(function(t){
+      h += '<button class="enn-btn' + (e.tila === t[0] ? " on" : "") + '" data-enn-set="' + esc(path) + '" data-enn-val="' + t[0] + '">' + (t[0]==="vahvistettu" ? "&#10003; " : "") + t[1] + '</button>';
+    });
+    return h + '</div>';
+  }
+  function ennBadge(path, showOrig){
+    var e = getEnn(state.current, path);
+    if(!e) return "";
+    return '<div class="enn-badge' + (e.tila ? " t-" + e.tila : "") + '" data-enn-badge="' + esc(path) + '" data-enn-orig="' + (showOrig ? 1 : 0) + '">' + ennBadgeInner(e, path, showOrig) + '</div>';
+  }
+  function refreshEnn(path){
+    var e = getEnn(state.current, path);
+    if(!e) return;
+    app.querySelectorAll('[data-enn-badge]').forEach(function(el){
+      if(el.getAttribute("data-enn-badge") !== path) return;
+      el.className = "enn-badge" + (e.tila ? " t-" + e.tila : "");
+      el.innerHTML = ennBadgeInner(e, path, el.getAttribute("data-enn-orig") === "1");
+    });
+    var cnt = document.getElementById("enn-count");
+    if(cnt){ var c = ennCounts(state.current); cnt.textContent = c.done + " / " + c.total + " kuitattu"; }
+  }
+  /* Kentän muokkaus: poikkeava arvo = Korjattu, alkuperäiseen palautettu = tarkistamatta */
+  function ennAuto(path, val){
+    var e = getEnn(state.current, path);
+    if(!e) return;
+    var orig = e.arvo === true ? "true" : String(e.arvo === undefined ? "" : e.arvo);
+    var now = val === true ? "true" : (val === false ? "" : String(val));
+    if(now !== orig) e.tila = "korjattu";
+    else if(e.tila === "korjattu") e.tila = "";
+    refreshEnn(path);
+  }
+
+  /* Tuonti: .json (muoto "ktp-ennakko", versio 1). Kohdan avain joko "c9-0" tai viite "9.1". */
+  function viiteToKey(k){
+    var m = /^(\d+)\.(\d+)$/.exec(String(k).trim());
+    if(m) return "c" + m[1] + "-" + (parseInt(m[2],10) - 1);
+    return String(k).trim();
+  }
+  function ennVal(v){
+    if(v && typeof v === "object" && !Array.isArray(v)) return {arvo: v.arvo, lahde: v.lahde || ""};
+    return {arvo: v, lahde: ""};
+  }
+  function buildFromEnnakko(d){
+    if(!d || d.muoto !== "ktp-ennakko") throw new Error("Tiedosto ei ole ennakkotietotiedosto (muoto: ktp-ennakko).");
+    var insp = freshCurrent(), warn = [];
+    var en = { kohde: d.kohde || "", laadittu: d.laadittu || "", laatija: d.laatija || "", lahteet: d.lahteet || [],
+      painopisteet: d.painopisteet || [], kysymykset: d.kysymykset || [], puuttuvat: d.puuttuvat || [], kentat: {} };
+    insp.ennakko = en;
+    var metaOk = {}; ALL_META_KEYS.forEach(function(k){ metaOk[k] = 1; });
+    Object.keys(d.meta || {}).forEach(function(k){
+      if(!metaOk[k]){ warn.push("tuntematon perustieto: " + k); return; }
+      var v = ennVal(d.meta[k]);
+      if(v.arvo === undefined || v.arvo === null || v.arvo === "") return;
+      insp.meta[k] = String(v.arvo);
+      if(k !== "pvm" && k !== "tarkastaja") en.kentat["meta."+k] = {arvo: String(v.arvo), lahde: v.lahde, tila: ""};
+    });
+    var rakOk = {}; RAKENNE_FIELDS.forEach(function(f){ rakOk[f.k] = 1; });
+    Object.keys(d.rakenne || {}).forEach(function(k){
+      if(!rakOk[k]){ warn.push("tuntematon rakennetieto: " + k); return; }
+      var v = ennVal(d.rakenne[k]);
+      if(v.arvo === undefined || v.arvo === null || v.arvo === "") return;
+      insp.rakenne[k] = String(v.arvo);
+      en.kentat["rakenne."+k] = {arvo: String(v.arvo), lahde: v.lahde, tila: ""};
+    });
+    var docOk = {}; DOCS.forEach(function(x){ docOk[x.k] = 1; });
+    Object.keys(d.asiakirjat || {}).forEach(function(k){
+      if(!docOk[k]){ warn.push("tuntematon asiakirja: " + k); return; }
+      var v = ennVal(d.asiakirjat[k]);
+      if(v.arvo !== true) return;
+      insp.asiakirjat[k] = true;
+      en.kentat["asiakirjat."+k] = {arvo: true, lahde: v.lahde, tila: ""};
+    });
+    Object.keys(d.kohdat || {}).forEach(function(k0){
+      var k = viiteToKey(k0), src = d.kohdat[k0] || {}, it = insp.items[k];
+      if(!it){ warn.push("tuntematon tarkastuskohta: " + k0); return; }
+      if(src.teksti || src.riskiEhdokas){
+        it.ennakko = {teksti: src.teksti || "", lahde: src.lahde || "", riskiEhdokas: src.riskiEhdokas || "", tila: ""};
+      }
+      if(AGE_KEYS[k] && IKA_OPTS.indexOf(src.ika) > -1){ it.ika = src.ika; if(src.ikaVuosi) it.ikaVuosi = String(src.ikaVuosi); }
+      /* status, havainto, riski ym. jätetään tarkoituksella tuomatta */
+    });
+    Object.keys(d.mittaukset || {}).forEach(function(gid){
+      var g = MEAS_GROUPS.filter(function(x){ return x.id === gid; })[0];
+      if(!g){ warn.push("tuntematon mittausryhmä: " + gid); return; }
+      var textKeys = g.fields.filter(function(f){ return f.type !== "num" && f.type !== "chips" && f.k !== "huom" && f.k !== "arvo"; }).map(function(f){ return f.k; });
+      (d.mittaukset[gid] || []).forEach(function(r){
+        var row = {};
+        textKeys.forEach(function(tk){ if(r[tk]) row[tk] = String(r[tk]); });
+        if(Object.keys(row).length) insp.mittaukset[gid].push(row);
+      });
+    });
+    insp.openCats = {"c6": true, "enn": true};
+    return {insp: insp, warn: warn};
+  }
+  function importEnnakkoFile(file){
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var d;
+      try { d = JSON.parse(ev.target.result); }
+      catch(e){ alert("Tiedosto ei ole kelvollinen .json-tiedosto."); return; }
+      importEnnakkoData(d);
+    };
+    reader.onerror = function(){ alert("Tiedoston lukeminen epäonnistui."); };
+    reader.readAsText(file);
+  }
+  function importEnnakkoData(d){
+    {
+      var res;
+      try { res = buildFromEnnakko(d); }
+      catch(e){ alert("Ennakkotietojen tuonti epäonnistui: " + (e && e.message ? e.message : e)); return; }
+      var cur = state.current;
+      var busy = counts(cur).answered > 0 || itemsOf(cur).some(hasContent) || !!cur.meta.osoite;
+      if(busy && !confirm("Kesken oleva tarkastus (" + (cur.meta.osoite || "ei osoitetta") + ") korvataan ennakkotiedoilla. Tallenna se ensin raportiksi, jos haluat säilyttää sen.\n\nKorvataanko?")) return;
+      state.current = res.insp;
+      state.tab = "kohde";
+      persistCurrent();
+      render();
+      window.scrollTo(0, 0);
+      var c = ennCounts(state.current);
+      alert("Ennakkotiedot tuotu: " + c.total + " tarkistettavaa tietoa." + (res.warn.length ? "\n\nOhitettu:\n- " + res.warn.join("\n- ") : ""));
+    }
+  }
+
   var CUR_KEY = "ktp_v1_current";
   var HIST_KEY = "ktp_v1_history";
   var DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -755,12 +956,12 @@
           riskiRak:d.riskiRak||"", riskiAvattu:d.riskiAvattu||"", riskiVaurio:d.riskiVaurio||"",
           riskiSijainti:d.riskiSijainti||"", riskiSeikat:d.riskiSeikat||"",
           syy:d.syy||"", syyLisa:d.syyLisa||"",
-          merkitys:d.merkitys||"", toimTyyppi:d.toimTyyppi||"", ika:d.ika||"", ikaVuosi:d.ikaVuosi||"", haastattelu:!!d.haastattelu });
+          merkitys:d.merkitys||"", toimTyyppi:d.toimTyyppi||"", ika:d.ika||"", ikaVuosi:d.ikaVuosi||"", haastattelu:!!d.haastattelu, ennakko:d.ennakko||null });
       });
     });
     return list;
   }
-  function hasContent(x){ return !!(x.note || x.merkitys || x.toimenpide || x.toimTyyppi || x.ika || x.photos.length || x.riski || x.lisatutkimus); }
+  function hasContent(x){ return !!(x.note || x.merkitys || x.toimenpide || x.toimTyyppi || x.ika || x.photos.length || x.riski || x.lisatutkimus || x.ennakko); }
 
   function counts(insp){
     var list = itemsOf(insp);
@@ -850,6 +1051,7 @@
   function renderMetaField(f, val){
     var html = '<div class="field-item'+(f.full?" full":"")+'">';
     html += '<label>'+esc(f.l)+'</label>';
+    var ennB = ennBadge("meta."+f.k, false);
     if(f.type === "chips"){
       html += '<div class="flag-toggles">';
       f.opts.forEach(function(o){
@@ -861,13 +1063,38 @@
     } else {
       html += '<input type="'+(f.type||"text")+'" data-meta-key="'+f.k+'" value="'+esc(val)+'"'+(f.ph? ' placeholder="'+esc(f.ph)+'"':'')+'>';
     }
-    html += '</div>';
+    html += ennB + '</div>';
     return html;
+  }
+
+  function renderEnnakkoCard(){
+    var cur = state.current, en = cur.ennakko;
+    var picker = '<input type="file" accept=".json,application/json" class="import-input" id="enn-import">';
+    if(!en){
+      return '<div class="field-card"><h3>Ennakkotiedot</h3><div class="section-note">Tuo ennen käyntiä laadittu esitäyttö (.json). Tiedot merkitään lähteineen ja kuitataan paikan päällä. Tuonti korvaa kesken olevan tarkastuksen.</div>' + picker + '</div>';
+    }
+    var c = ennCounts(cur), open = !!cur.openCats.enn;
+    var html = '<div class="field-card enn-card"><button class="cat-head" style="padding:0" data-cat-toggle="enn"><span class="cat-title"><h3 style="margin:0">Ennakkotiedot</h3>';
+    html += '<div class="cat-count"><span id="enn-count">' + c.done + ' / ' + c.total + ' kuitattu</span>' + (en.laadittu ? ' · laadittu ' + esc(fmtDate(en.laadittu)) : '') + '</div></span><span class="cat-chevron'+(open?" open":"")+'">&#9656;</span></button>';
+    if(open){
+      html += '<div class="section-note" style="margin:10px 0 6px">Kuittaa jokainen tieto: <b>Vahvistettu</b>, <b>Korjattu</b> (korjaa kenttään) tai <b>Ei tarkistettu</b>. Kentän muuttaminen merkitsee tiedon korjatuksi. Tarkastuskohtien tila merkitään vain paikan päällä.</div>';
+      if(en.lahteet && en.lahteet.length){ html += '<div class="enn-sub">LÄHTEET</div><ul class="enn-ul">' + en.lahteet.map(function(s){ return '<li>'+esc(s)+'</li>'; }).join("") + '</ul>'; }
+      if(en.painopisteet && en.painopisteet.length){ html += '<div class="enn-sub">PAINOPISTEET</div><ul class="enn-ul">' + en.painopisteet.map(function(s){ return '<li>'+esc(s)+'</li>'; }).join("") + '</ul>'; }
+      if(en.kysymykset && en.kysymykset.length){ html += '<div class="enn-sub">KYSY PAIKAN PÄÄLLÄ</div><ul class="enn-ul">' + en.kysymykset.map(function(s){ return '<li>'+esc(s)+'</li>'; }).join("") + '</ul>'; }
+      if(en.puuttuvat && en.puuttuvat.length){ html += '<div class="enn-sub">PYYDETTY TILAAJALTA (PUUTELISTA)</div><ul class="enn-ul">' + en.puuttuvat.map(function(s){ return '<li>'+esc(s)+'</li>'; }).join("") + '</ul>'; }
+      html += '<div class="enn-sub">TARKISTETTAVAT TIEDOT</div>';
+      ennAllPaths(cur).forEach(function(p){
+        html += '<div class="enn-list-row"><div class="lbl">' + esc(ennPathLabel(p)) + '</div>' + ennBadge(p, true) + '</div>';
+      });
+      html += '<div class="enn-sub">KORVAA UUDELLA TIEDOSTOLLA</div>' + picker;
+    }
+    return html + '</div>';
   }
 
   function renderKohde(){
     var cur = state.current, m = cur.meta;
     var html = "";
+    html += renderEnnakkoCard();
     html += '<div class="field-card"><h3>Kohteen yleiskuva</h3>';
     html += '<div class="section-note">Esim. julkisivu ja tontti. Ei pakollinen. Kuvalle voi kirjoittaa kuvatekstin.</div>';
     html += renderPhotoPicker("cover", cur.coverPhotos.length);
@@ -914,15 +1141,19 @@
       html += '<button class="chip-toggle doc'+(on?" on":"")+'" data-doc-toggle="'+d.k+'">'+(on?"&#10003; ":"")+esc(d.l)+'</button>';
     });
     html += '</div>';
+    DOCS.forEach(function(d){
+      var b = ennBadge("asiakirjat."+d.k, false);
+      if(b) html += b.replace('<div class="enn-head">', '<div class="enn-head">' + esc(d.l) + ' · ');
+    });
     var dated = DOCS.filter(function(d){ return d.date && cur.asiakirjat[d.k]; });
     if(dated.length){
       html += '<div class="doc-dates">';
       dated.forEach(function(d){
-        html += '<div class="field-item"><label>'+esc(d.l.replace(/ \(.*\)$/,""))+': päiväys</label><input type="date" data-meta-key="'+d.date+'" value="'+esc(m[d.date]||"")+'"></div>';
+        html += '<div class="field-item"><label>'+esc(d.l.replace(/ \(.*\)$/,""))+': päiväys</label><input type="date" data-meta-key="'+d.date+'" value="'+esc(m[d.date]||"")+'">'+ennBadge("meta."+d.date, false)+'</div>';
       });
       html += '</div>';
     }
-    html += '<div class="field-grid" style="margin-top:10px"><div class="field-item full"><label>Muut asiakirjat</label><input type="text" data-meta-key="asiak_muu" value="'+esc(m.asiak_muu||"")+'" placeholder="Esim. myyntiesite, korjaussuunnitelma"></div></div>';
+    html += '<div class="field-grid" style="margin-top:10px"><div class="field-item full"><label>Muut asiakirjat</label><input type="text" data-meta-key="asiak_muu" value="'+esc(m.asiak_muu||"")+'" placeholder="Esim. myyntiesite, korjaussuunnitelma">'+ennBadge("meta.asiak_muu", false)+'</div></div>';
     html += '</div>';
 
     html += '<div class="field-card"><h3>Lisätiedot</h3><div class="field-grid">';
@@ -936,7 +1167,7 @@
       var val = cur.rakenne[f.k] || "";
       html += '<div class="field-item'+(f.full?" full":"")+'"><label>'+esc(f.l)+'</label>';
       html += f.area ? '<textarea data-rakenne-key="'+f.k+'">'+esc(val)+'</textarea>' : '<input type="text" data-rakenne-key="'+f.k+'" value="'+esc(val)+'">';
-      html += '</div>';
+      html += ennBadge("rakenne."+f.k, false) + '</div>';
     });
     html += '</div></div>';
     return html;
@@ -964,6 +1195,7 @@
         var d = state.current.items[key];
         html += '<div class="item" data-status="'+(d.status||"")+'">';
         html += '<div class="item-text">'+ch.num+'.'+(idx+1)+' '+esc(t)+(key===ASBEST_KEY? '<div class="item-sub">'+esc(asbestHint(state.current.meta))+'</div>':'')+'</div>';
+        if(d.ennakko) html += '<div class="enn-item">'+ennBadge("item:"+key, false)+'</div>';
         html += '<div class="segmented">';
         html += '<button class="seg-btn'+(d.status==="ok"?" on-ok":"")+'" data-set-status="'+key+'" data-status-val="ok">Tarkastettu, ok</button>';
         html += '<button class="seg-btn'+(d.status==="huomio"?" on-huom":"")+'" data-set-status="'+key+'" data-status-val="huomio">Huomio</button>';
@@ -1161,6 +1393,11 @@
     var label = {ok:"Ok", huom:"Huomio", skip:"Ei tarkastettu", unset:"Tila merkitsemättä"}[st];
     out.push({t:"item", text:x.viite+" "+x.text, status:st, label:label});
     if(st === "skip") out.push({t:"lbl", k:"Syy", v:skipText(x)});
+    if(x.ennakko){
+      var en = x.ennakko, tag = " (" + (en.lahde || "lähde puuttuu") + "; " + ennTilaText(en.tila).toLowerCase() + ")";
+      if(en.teksti) out.push({t:"lbl", k:"Ennakkotieto", v:en.teksti + tag});
+      if(en.riskiEhdokas) out.push({t:"lbl", k:"Riskirakenne-ehdokas (ennakkoarvio)", v:en.riskiEhdokas + (en.teksti ? "" : tag), cls:"risk"});
+    }
     if(x.note) out.push({t:"p", text:x.note + (x.haastattelu ? " *" : "")});
     if(x.merkitys) out.push({t:"lbl", k:"Merkitys", v:x.merkitys});
     if(x.haastattelu) out.push({t:"lbl", k:"Tiedon lähde", v:"* haastattelutieto (omistajan tai asukkaan kertoma)"});
@@ -1231,6 +1468,19 @@
     });
     if(m.asiak_muu) rows.push(["Muut asiakirjat", m.asiak_muu]);
     b.push(rows.length ? {t:"kv", rows:rows} : {t:"p", text:"Asiakirjoja ei merkitty.", cls:"muted"});
+
+    if(insp.ennakko){
+      var ec = ennCounts(insp), en = insp.ennakko;
+      b.push({t:"h1", text:"Ennakkotiedot ja niiden tarkistus"});
+      b.push({t:"p", text:"Ennakkotiedot on koottu ennen käyntiä" + (en.laadittu ? " " + fmtDate(en.laadittu) : "") + ". Ne eivät ole tarkastajan havaintoja. Kuitattu paikan päällä: " + ec.done + " / " + ec.total + ".", cls:"muted"});
+      if(en.lahteet && en.lahteet.length) b.push({t:"kv", rows:[["Lähteet", en.lahteet.join("\n")]]});
+      var eRows = ennAllPaths(insp).filter(function(p){ return p.indexOf("item:") !== 0; }).map(function(p){
+        var e = getEnn(insp, p);
+        return [ennPathLabel(p), ennOrigText(e, p) + "\n" + (e.lahde || "lähde puuttuu") + " · " + ennTilaText(e.tila)];
+      });
+      if(eRows.length) b.push({t:"kv", rows:eRows});
+      if(en.puuttuvat && en.puuttuvat.length) b.push({t:"kv", rows:[["Pyydetty tilaajalta ennen käyntiä", en.puuttuvat.join("\n")]]});
+    }
 
     var hRows = HAAST_FIELDS.filter(function(f){ return f.area && m[f.k]; }).map(function(f){ return [f.l, m[f.k]]; });
     if(hRows.length){
@@ -1398,6 +1648,7 @@
       el.addEventListener("input", function(){
         var k = el.getAttribute("data-meta-key");
         state.current.meta[k] = el.value;
+        ennAuto("meta."+k, el.value);
         persistCurrent();
         var topAddr = app.querySelector(".brand-addr");
         if(topAddr && k==="osoite") topAddr.textContent = el.value || "Kohteen osoite puuttuu";
@@ -1412,6 +1663,7 @@
       el.addEventListener("click", function(){
         var k = el.getAttribute("data-meta-chip"), v = el.getAttribute("data-chip-val");
         state.current.meta[k] = (state.current.meta[k] === v) ? "" : v;
+        ennAuto("meta."+k, state.current.meta[k]);
         persistCurrent();
         render();
       });
@@ -1420,6 +1672,7 @@
       el.addEventListener("click", function(){
         var k = el.getAttribute("data-doc-toggle");
         state.current.asiakirjat[k] = !state.current.asiakirjat[k];
+        ennAuto("asiakirjat."+k, state.current.asiakirjat[k]);
         persistCurrent();
         render();
       });
@@ -1427,8 +1680,15 @@
     app.querySelectorAll("[data-rakenne-key]").forEach(function(el){
       el.addEventListener("input", function(){
         state.current.rakenne[el.getAttribute("data-rakenne-key")] = el.value;
+        ennAuto("rakenne."+el.getAttribute("data-rakenne-key"), el.value);
         persistCurrent();
       });
+    });
+    var impEl = document.getElementById("enn-import");
+    if(impEl) impEl.addEventListener("change", function(e){
+      var f = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if(f) importEnnakkoFile(f);
     });
 
     app.querySelectorAll("[data-cat-toggle]").forEach(function(el){
@@ -2016,12 +2276,26 @@
   }
 
   /* Testausta varten (selaimen konsolista) */
-  window.__ktp = { buildDoc: buildDoc, buildDocx: buildDocx, state: state, missingPhotos: missingPhotos };
+  window.__ktp = { buildDoc: buildDoc, buildDocx: buildDocx, state: state, missingPhotos: missingPhotos,
+    buildFromEnnakko: buildFromEnnakko, importEnnakkoData: importEnnakkoData };
 
   function applyLoaded(cur, hist){
     if(cur){ state.current = migrateInsp(cur); }
     if(hist){ state.history = hist.map(migrateInsp); }
   }
+
+  /* Ennakkotietojen kuittaus: yksi delegoitu kuuntelija, koska merkit päivitetään paikallaan */
+  app.addEventListener("click", function(ev){
+    var b = ev.target.closest ? ev.target.closest("[data-enn-set]") : null;
+    if(!b) return;
+    ev.preventDefault(); ev.stopPropagation();
+    var path = b.getAttribute("data-enn-set"), v = b.getAttribute("data-enn-val");
+    var e = getEnn(state.current, path);
+    if(!e) return;
+    e.tila = (e.tila === v) ? "" : v;
+    persistCurrent();
+    refreshEnn(path);
+  });
 
   render();
   try { if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
