@@ -271,6 +271,23 @@
   .enn-sub { font-size: 10.5px; font-weight: 700; color: var(--ink-soft); margin-top: 10px; letter-spacing: 0.2px; }
   .import-input { font-family: var(--font-body); font-size: 12px; max-width: 100%; }
 
+  /* ---- v5.1: vientivalikko ---- */
+  .sheet-bg { position: fixed; inset: 0; z-index: 50; background: rgba(10,16,20,0.55); display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { width: 100%; max-width: 640px; background: var(--surface); color: var(--ink); border-radius: 16px 16px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -4px 20px rgba(0,0,0,0.25); max-height: 90vh; overflow-y: auto; }
+  .sheet h3 { font-family: var(--font-head); font-size: 21px; margin: 0 0 4px; }
+  .sheet .fname { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 14px; word-break: break-word; }
+  .sheet .fname b { color: var(--ink); }
+  .sheet-btn { display: block; width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-family: var(--font-body); }
+  .sheet-btn b { display: block; font-size: 15px; }
+  .sheet-btn span { display: block; font-size: 12px; color: var(--ink-soft); margin-top: 2px; line-height: 1.35; }
+  .sheet-btn.primary { background: var(--orange); border-color: var(--orange); color: #fff; }
+  .sheet-btn.primary span { color: #FFE9DA; }
+  .sheet-close { width: 100%; padding: 11px; border: none; background: none; color: var(--ink-soft); font-family: var(--font-body); font-weight: 600; font-size: 14px; }
+  .sheet-info { font-size: 14px; line-height: 1.5; }
+  .sheet-info ol { padding-left: 20px; margin: 8px 0 14px; }
+  .export-top { display: flex; gap: 8px; margin: 0 2px 12px; }
+  .export-top .btn { flex: 1; }
+
   @media print {
     .topbar, .bottombar, .report-back, .doc-actions { display: none !important; }
     body, #app { background: #fff; }
@@ -285,7 +302,7 @@
 (function(){
   "use strict";
 
-  var APP_VERSION = "2026-11-11 (v5, ennakkotiedot)";
+  var APP_VERSION = "2026-11-11 (v5.1, vientivalikko)";
 
   /* ================= Rakenne: kuntotarkastuksen laajuus KH 90-00394 mukaisesti ================= */
   var CHAPTERS = [
@@ -921,7 +938,7 @@
   var storageWarned = false;
   function warnStorage(){
     if(storageWarned) return; storageWarned = true;
-    alert("Tallennus laitteen muistiin epäonnistui. ÄLÄ sulje sovellusta: vie tarkastus heti talteen (Raportit → Kesken oleva tarkastus → Jaa / Lataa Word).");
+    alert("Tallennus laitteen muistiin epäonnistui. ÄLÄ sulje sovellusta: vie tarkastus heti talteen (Raportit → Kesken oleva tarkastus → Vie Word-tiedostona / lähetä).");
   }
   function saveJSON(key, val){
     if(idbOk){
@@ -1612,12 +1629,12 @@
     var insp = state.reportView === "current" ? state.current : state.history.find(function(h){return h.id===state.reportView;});
     if(!insp) return renderReportList();
     var html = '<div class="report-back"><button data-back-to-list>&#8592; Kaikki raportit</button></div>';
+    html += '<div class="export-top"><button class="btn btn-primary" data-open-export="'+insp.id+'">Vie Word-tiedostona / lähetä…</button></div>';
     html += '<div class="report-doc" id="printArea">';
     html += blocksToHtml(buildDoc(insp, false));
-    html += '<div class="section-note" style="margin-top:16px;">Vienti tekee <b>Word-tiedoston (.docx)</b>, jossa ovat kaikki havainnot, mittaukset ja kuvat kuvateksteineen. Kohdan kuvat tulevat mukaan, vaikka kohdalle ei olisi merkitty tilaa. <b>Jaa / lähetä</b> avaa puhelimen jakovalikon (sähköposti, Drive, OneDrive, WhatsApp…), jos puhelin sallii Word-tiedoston jakamisen. Muuten tiedosto tallentuu Lataukset-kansioon. <b>Lataa Word</b> tallentaa tiedoston aina Lataukset-kansioon. Tiedostoa voi muokata Wordilla puhelimessa tai tietokoneella.</div>';
+    html += '<div class="section-note" style="margin-top:16px;">Vienti tekee <b>Word-tiedoston (.docx)</b>, jossa ovat kaikki havainnot, mittaukset ja kuvat kuvateksteineen. Valikosta voit lähettää sen sähköpostiin, jakaa sen (Drive, WhatsApp…) tai tallentaa sen puhelimen Lataukset-kansioon. Sovellus kertoo tiedoston nimen ja paikan.</div>';
     html += '<div class="doc-actions">';
-    html += '<button class="btn btn-primary" id="btn-export-notes" data-export-notes="'+insp.id+'">Jaa / lähetä</button>';
-    html += '<button class="btn btn-ghost" id="btn-download-notes" data-download-notes="'+insp.id+'">Lataa Word</button>';
+    html += '<button class="btn btn-primary" data-open-export="'+insp.id+'">Vie Word / lähetä…</button>';
     if(state.reportView !== "current"){
       html += '<button class="btn btn-ghost" id="btn-delete-report" data-del="'+insp.id+'">Poista</button>';
     }
@@ -1904,15 +1921,11 @@
     });
 
     function inspById(id){ return id === state.current.id ? state.current : state.history.find(function(h){return h.id===id;}); }
-    var bexport = app.querySelector("[data-export-notes]");
-    if(bexport) bexport.addEventListener("click", function(){
-      var insp = inspById(bexport.getAttribute("data-export-notes"));
-      if(insp) exportNotes(insp, bexport, "share");
-    });
-    var bdl = app.querySelector("[data-download-notes]");
-    if(bdl) bdl.addEventListener("click", function(){
-      var insp = inspById(bdl.getAttribute("data-download-notes"));
-      if(insp) exportNotes(insp, bdl, "download");
+    app.querySelectorAll("[data-open-export]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var insp = inspById(b.getAttribute("data-open-export"));
+        if(insp) openExportSheet(insp, false);
+      });
     });
 
     var bdel = document.getElementById("btn-delete-report");
@@ -1950,7 +1963,8 @@
       state.reportView = snapshot.id;
       render();
       window.scrollTo(0, 0);
-      if(!ok) alert("Raporttia ei saatu tallennettua laitteen muistiin, mutta se on yhä auki. Vie se heti talteen painikkeella \"Jaa / lähetä\" tai \"Lataa Word\".");
+      var saved = state.history.filter(function(h){ return h.id === snapshot.id; })[0] || snapshot;
+      openExportSheet(saved, true, ok);
     });
   }
 
@@ -2201,29 +2215,91 @@
     return osoite + " - muistiinpanot " + pvm + ".docx";
   }
 
+  /* Palauttaa lupauksen: "shared" (jakovalikko käytetty), "downloaded" (Lataukset-kansioon) tai null (peruttu) */
+  function canShareDocx(){
+    try {
+      if(!(navigator.share && navigator.canShare && typeof File === "function")) return false;
+      return navigator.canShare({ files: [new File([new Uint8Array(1)], "testi.docx", { type: DOCX_MIME })] });
+    } catch(e){ return false; }
+  }
   function saveOrDownloadBlob(blob, filename, mode){
     var mime = blob.type;
+    function dl(){ browserDownload(blob, filename); return "downloaded"; }
     if(mode === "share" && navigator.share && navigator.canShare && typeof File === "function"){
       try {
         var file = new File([blob], filename, { type: mime });
         if(navigator.canShare({ files: [file] })){
-          return navigator.share({ files: [file], title: filename }).catch(function(err){
+          return navigator.share({ files: [file], title: filename }).then(function(){ return "shared"; }).catch(function(err){
             if(err && err.name === "AbortError") return null;
-            return browserDownload(blob, filename);
+            return dl();
           });
         }
       } catch(e){ console.warn("Jako ei onnistunut", e); }
     }
     if(window.claude && typeof window.claude.use === "function"){
       return window.claude.use("downloads").then(function(downloads){
-        if(!downloads) return browserDownload(blob, filename);
-        return downloads.save({ filename: filename, data: blob }).catch(function(err){
+        if(!downloads) return dl();
+        return downloads.save({ filename: filename, data: blob }).then(function(){ return "downloaded"; }).catch(function(err){
           if(err && err.code === "declined") return null;
-          return browserDownload(blob, filename);
+          return dl();
         });
-      }).catch(function(){ return browserDownload(blob, filename); });
+      }).catch(function(){ return dl(); });
     }
-    return browserDownload(blob, filename);
+    return Promise.resolve(dl());
+  }
+
+  /* ---- v5.1: vientivalikko (avautuu tallennuksen jälkeen ja raportin näkymästä) ---- */
+  function closeSheet(){ var s = document.getElementById("export-sheet"); if(s) s.remove(); }
+  function showSheet(inner){
+    closeSheet();
+    var bg = document.createElement("div");
+    bg.className = "sheet-bg"; bg.id = "export-sheet";
+    bg.innerHTML = '<div class="sheet">' + inner + '</div>';
+    bg.addEventListener("click", function(e){ if(e.target === bg) closeSheet(); });
+    document.body.appendChild(bg);
+    return bg;
+  }
+  function openExportSheet(insp, justSaved, savedOk){
+    var fname = notesFilenameFor(insp);
+    var share = canShareDocx();
+    var h = '<h3>' + (justSaved ? (savedOk === false ? "Tallennus puhelimen muistiin epäonnistui" : "Raportti tallennettu") : "Vie Word-tiedostona") + '</h3>';
+    h += '<div class="fname">' + (justSaved && savedOk !== false ? 'Tallessa sovelluksen Raportit-listassa. ' : '') + (savedOk === false ? '<b>Vie raportti heti talteen alla olevilla painikkeilla.</b> ' : '') + 'Word-tiedoston nimi: <b>' + esc(fname) + '</b></div>';
+    h += '<button class="sheet-btn primary" data-x="email"><b>&#9993; Lähetä sähköpostiin</b><span>' + (share ? 'Avaa jakovalikon: valitse Gmail tai muu sähköposti. Tiedosto tulee liitteeksi.' : 'Tiedosto tallentuu Lataukset-kansioon, ja sähköposti aukeaa. Liitä tiedosto: &#128206; &rarr; Lataukset.') + '</span></button>';
+    if(share) h += '<button class="sheet-btn" data-x="share"><b>Jaa: Drive, WhatsApp…</b><span>Avaa puhelimen jakovalikon. Valitse esim. Drive &rarr; Tallenna.</span></button>';
+    h += '<button class="sheet-btn" data-x="download"><b>Tallenna puhelimeen</b><span>Lataukset-kansioon (Tiedostot &rarr; Lataukset). Sieltä tiedoston voi jakaa Driveen: paina pitkään &rarr; Jaa.</span></button>';
+    h += '<button class="sheet-close" data-x="close">' + (justSaved ? 'Ei nyt' : 'Peruuta') + '</button>';
+    var bg = showSheet(h);
+    bg.querySelectorAll("[data-x]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var x = b.getAttribute("data-x");
+        if(x === "close"){ closeSheet(); return; }
+        closeSheet();
+        doExport(insp, x);
+      });
+    });
+  }
+  function doExport(insp, how){
+    var miss = missingPhotos(insp);
+    if(miss.length && !confirm("Yleiskuvat puuttuvat (RT 103996): " + miss.join(", ") + ".\n\nViedäänkö silti?")) return;
+    var blob, fname = notesFilenameFor(insp);
+    try { blob = buildDocx(buildDoc(insp, true)); }
+    catch(e){ console.error(e); alert("Word-tiedoston teko epäonnistui. Kokeile uudelleen."); return; }
+    var mode = (how === "download") ? "download" : "share";
+    Promise.resolve(saveOrDownloadBlob(blob, fname, mode)).then(function(res){
+      if(res !== "downloaded") return;
+      var info = '<h3>Tallennettu puhelimeen</h3><div class="sheet-info">Tiedosto <b>' + esc(fname) + '</b> on puhelimen <b>Lataukset</b>-kansiossa (Download).';
+      if(how === "email"){
+        var subj = "Kuntotarkastus " + (insp.meta.osoite || "") + (insp.meta.pvm ? " " + fmtDate(insp.meta.pvm) : "");
+        var body = "Liitteenä kuntotarkastuksen muistiinpanot (" + fname + ").";
+        info += '<ol><li>Paina alta <b>Avaa sähköposti</b>.</li><li>Paina viestissä &#128206; (Liitä tiedosto).</li><li>Valitse <b>Lataukset</b> ja tiedosto ' + esc(fname) + '.</li></ol>';
+        info += '<a class="sheet-btn primary" style="text-decoration:none" href="mailto:?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body) + '"><b>&#9993; Avaa sähköposti</b><span>Otsikko ja saate ovat valmiina. Lisää vastaanottaja ja liite.</span></a>';
+      } else {
+        info += '<ol><li>Avaa puhelimen <b>Tiedostot</b> (tai Omat tiedostot) &rarr; <b>Lataukset</b>.</li><li>Paina tiedostoa pitkään &rarr; <b>Jaa</b> &rarr; Drive tai Gmail.</li></ol>';
+      }
+      info += '</div><button class="sheet-close" data-x="close">Sulje</button>';
+      var bg = showSheet(info);
+      bg.querySelector('[data-x="close"]').addEventListener("click", closeSheet);
+    });
   }
 
   function browserDownload(blob, filename){
